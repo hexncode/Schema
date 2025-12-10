@@ -1,0 +1,1835 @@
+{% extends "frontend/base.html" %}
+
+{% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    /* Map uses design system colors from theme.css */
+    #map {
+        height: calc(100vh - 100px);
+        width: 100%;
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-md);
+    }
+
+    .search-panel {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        z-index: 1000;
+        background: var(--bg-primary);
+        padding: 20px;
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-lg);
+        max-width: 340px;
+        max-height: calc(100vh - 140px);
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+    }
+
+    .layer-control-section {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .collapsible-header {
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        user-select: none;
+    }
+
+    .collapsible-header:hover {
+        background-color: var(--bg-tertiary);
+        border-radius: 5px;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .collapse-icon {
+        transition: transform 0.2s;
+    }
+
+    .collapse-icon.collapsed {
+        transform: rotate(-90deg);
+    }
+
+    .layer-toggle {
+        margin-bottom: 8px;
+    }
+
+    /* Layer Groups */
+    .layer-group {
+        margin-bottom: 12px;
+    }
+
+    .layer-group-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 0;
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 8px;
+    }
+
+    .layer-group-header.collapsed .expand-icon {
+        transform: rotate(0deg);
+    }
+
+    .layer-group-header:not(.collapsed) .expand-icon {
+        transform: rotate(90deg);
+    }
+
+    .expand-icon {
+        margin-left: auto;
+        font-size: 0.7rem;
+        transition: transform 0.2s;
+        color: #6c757d;
+    }
+
+    .layer-group-icon {
+        font-size: 0.9rem;
+    }
+
+    .layer-group-title {
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .layer-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 0 4px 8px;
+        margin-bottom: 2px;
+    }
+
+    .layer-item:hover {
+        background-color: var(--bg-tertiary);
+        border-radius: 4px;
+        margin-left: -4px;
+        padding-left: 12px;
+    }
+
+    .layer-item .form-check {
+        margin-bottom: 0;
+    }
+
+    .layer-item .form-check-label {
+        font-size: 0.85rem;
+        cursor: pointer;
+    }
+
+    .layer-status {
+        font-size: 0.65rem;
+        color: #6c757d;
+        background: #f1f3f4;
+        padding: 2px 6px;
+        border-radius: 3px;
+        white-space: nowrap;
+    }
+
+    .layer-status.active {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .layer-status.loading {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .layer-status.zoom-required {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    /* Base Map Grid */
+    .base-map-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+        padding: 8px 0;
+    }
+
+    .base-map-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 6px;
+        border: 2px solid transparent;
+        transition: all 0.15s ease;
+    }
+
+    .base-map-option:hover {
+        background: #f8f9fa;
+    }
+
+    .base-map-option.active {
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+
+    .base-map-option input {
+        display: none;
+    }
+
+    .base-map-preview {
+        width: 36px;
+        height: 36px;
+        border-radius: 4px;
+        margin-bottom: 4px;
+        border: 1px solid #dee2e6;
+    }
+
+    .light-preview {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+
+    .dark-preview {
+        background: linear-gradient(135deg, #343a40 0%, #212529 100%);
+    }
+
+    .osm-preview {
+        background: linear-gradient(135deg, #fff5e6 0%, #ffe0b3 100%);
+    }
+
+    .aerial-preview {
+        background: linear-gradient(135deg, #2d5016 0%, #1a3009 100%);
+    }
+
+    .hybrid-preview {
+        background: linear-gradient(135deg, #2d5016 50%, #fff5e6 50%);
+    }
+
+    .base-map-label {
+        font-size: 0.65rem;
+        color: #6c757d;
+        text-align: center;
+    }
+
+    .base-map-option.active .base-map-label {
+        color: #3b82f6;
+        font-weight: 600;
+    }
+
+    .property-info-panel {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        z-index: 1000;
+        background: var(--bg-primary);
+        padding: 16px;
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-lg);
+        max-width: 380px;
+        max-height: calc(100vh - 140px);
+        overflow-y: auto;
+        display: none;
+        border: 1px solid var(--border-color);
+    }
+
+    .property-info-panel::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .property-info-panel::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 3px;
+    }
+
+    .property-info-panel::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+
+    .info-section {
+        margin-bottom: 4px;
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .section-header h6 {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #1e293b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .section-icon {
+        font-size: 1rem;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid #f1f5f9;
+        gap: 12px;
+    }
+
+    .info-row:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #64748b;
+        white-space: nowrap;
+    }
+
+    .info-value {
+        color: #1e293b;
+        font-size: 0.85rem;
+        text-align: right;
+        word-break: break-word;
+    }
+
+    .coordinates-row .info-value {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .coord-value {
+        font-family: 'Monaco', 'Consolas', monospace;
+        font-size: 0.75rem;
+        color: #475569;
+        background: #f8fafc;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    .copy-btn {
+        padding: 2px 6px;
+        font-size: 0.7rem;
+        border-radius: 4px;
+    }
+
+    .btn-xs {
+        padding: 2px 6px;
+        font-size: 0.7rem;
+    }
+
+    .planning-item {
+        padding: 4px 0;
+    }
+
+    .planning-item.has-data {
+        background: #f8fafc;
+        margin: 4px -8px;
+        padding: 6px 8px;
+        border-radius: 6px;
+    }
+
+    .planning-item.alert-item {
+        background: #fef2f2;
+        margin: 4px -8px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        border-left: 3px solid #ef4444;
+    }
+
+    .planning-detail {
+        font-size: 0.7rem;
+        color: #64748b;
+        padding-left: 4px;
+        margin-top: 2px;
+    }
+
+    .loading-placeholder {
+        display: flex;
+        align-items: center;
+        padding: 12px 0;
+    }
+
+    .badge {
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 3px 8px;
+    }
+
+    .loading-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 2000;
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        display: none;
+    }
+
+    .zoom-indicator {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        padding: 6px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.9);
+        pointer-events: none;
+        letter-spacing: 0.3px;
+    }
+
+    .zoom-indicator span {
+        font-weight: 700;
+        color: #60a5fa;
+    }
+</style>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header" style="display: none;">
+                <h5 class="mb-0">NSW Property GIS Map</h5>
+            </div>
+            <div class="card-body p-0" style="position: relative;">
+                <!-- Search Panel with Integrated Layer Controls -->
+                <div class="search-panel">
+                    <h6 class="mb-3">Property Search</h6>
+                    <div class="mb-3">
+                        <label class="form-label small">Search by Address</label>
+                        <input type="text" class="form-control form-control-sm" id="addressSearch" placeholder="Enter address or suburb in NSW">
+                    </div>
+                    <button class="btn btn-primary btn-sm w-100 mb-2" id="searchBtn">
+                        <i class="bi bi-search"></i> Search Address
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm w-100" id="clearBtn">
+                        <i class="bi bi-x-circle"></i> Clear Selection
+                    </button>
+                    <div id="searchResults" class="mt-3"></div>
+
+                    <!-- Layer Control Section (Collapsible) -->
+                    <div class="layer-control-section">
+                        <div class="collapsible-header" id="layerControlToggle">
+                            <h6 class="mb-0" style="font-size: 0.95rem;">Layers</h6>
+                            <span class="collapse-icon">▼</span>
+                        </div>
+                        <div id="layerControlContent" style="margin-top: 10px;">
+
+                            <!-- CADASTRAL - Primary for finding lots -->
+                            <div class="layer-group">
+                                <div class="layer-group-header">
+                                    <span class="layer-group-icon">📐</span>
+                                    <span class="layer-group-title">Cadastral</span>
+                                </div>
+                                <div class="layer-item">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="toggleNSWLots" checked>
+                                        <label class="form-check-label" for="toggleNSWLots">
+                                            Property Lots
+                                        </label>
+                                    </div>
+                                    <span class="layer-status" id="lotsStatus">Zoom 16+</span>
+                                </div>
+                                <div class="layer-item">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="toggleSuburb">
+                                        <label class="form-check-label" for="toggleSuburb">
+                                            Suburb Boundaries
+                                        </label>
+                                    </div>
+                                    <span class="layer-status" id="suburbStatus">Zoom 10+</span>
+                                </div>
+                            </div>
+
+                            <!-- PLANNING CONTROLS -->
+                            <div class="layer-group">
+                                <div class="layer-group-header">
+                                    <span class="layer-group-icon">📋</span>
+                                    <span class="layer-group-title">Planning Controls</span>
+                                </div>
+                                <div class="layer-item">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="toggleZoning">
+                                        <label class="form-check-label" for="toggleZoning">
+                                            Land Zoning
+                                        </label>
+                                    </div>
+                                    <span class="layer-status">LEP</span>
+                                </div>
+                                <div class="layer-item">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="toggleHeritage">
+                                        <label class="form-check-label" for="toggleHeritage">
+                                            Heritage
+                                        </label>
+                                    </div>
+                                    <span class="layer-status">LEP</span>
+                                </div>
+                                <div class="layer-item">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="toggleFlood">
+                                        <label class="form-check-label" for="toggleFlood">
+                                            Flood Planning
+                                        </label>
+                                    </div>
+                                    <span class="layer-status">LEP</span>
+                                </div>
+                                <div class="layer-item">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="toggleBushfire">
+                                        <label class="form-check-label" for="toggleBushfire">
+                                            Bushfire Prone
+                                        </label>
+                                    </div>
+                                    <span class="layer-status">10/50</span>
+                                </div>
+                            </div>
+
+                            <!-- CONTEXT LAYERS -->
+                            <div class="layer-group">
+                                <div class="layer-group-header">
+                                    <span class="layer-group-icon">🏗️</span>
+                                    <span class="layer-group-title">Context</span>
+                                </div>
+                                <div class="layer-item">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="toggleNSWBuildings">
+                                        <label class="form-check-label" for="toggleNSWBuildings">
+                                            Building Footprints
+                                        </label>
+                                    </div>
+                                    <span class="layer-status" id="buildingsStatus">Zoom 17+</span>
+                                </div>
+                            </div>
+
+                            <hr class="my-2">
+
+                            <!-- BASE MAP - Less important, at bottom -->
+                            <div class="layer-group">
+                                <div class="layer-group-header collapsed" id="baseMapToggle" style="cursor: pointer;">
+                                    <span class="layer-group-icon">🗺️</span>
+                                    <span class="layer-group-title">Base Map</span>
+                                    <span class="expand-icon">▶</span>
+                                </div>
+                                <div id="baseMapOptions" style="display: none;">
+                                    <div class="base-map-grid">
+                                        <label class="base-map-option active" data-value="light">
+                                            <input type="radio" name="baseLayer" value="light" checked>
+                                            <span class="base-map-preview light-preview"></span>
+                                            <span class="base-map-label">Light</span>
+                                        </label>
+                                        <label class="base-map-option" data-value="dark">
+                                            <input type="radio" name="baseLayer" value="dark">
+                                            <span class="base-map-preview dark-preview"></span>
+                                            <span class="base-map-label">Dark</span>
+                                        </label>
+                                        <label class="base-map-option" data-value="osm">
+                                            <input type="radio" name="baseLayer" value="osm">
+                                            <span class="base-map-preview osm-preview"></span>
+                                            <span class="base-map-label">Streets</span>
+                                        </label>
+                                        <label class="base-map-option" data-value="aerial">
+                                            <input type="radio" name="baseLayer" value="aerial">
+                                            <span class="base-map-preview aerial-preview"></span>
+                                            <span class="base-map-label">Aerial</span>
+                                        </label>
+                                        <label class="base-map-option" data-value="hybrid">
+                                            <input type="radio" name="baseLayer" value="hybrid">
+                                            <span class="base-map-preview hybrid-preview"></span>
+                                            <span class="base-map-label">Hybrid</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Property Info Panel -->
+                <div class="property-info-panel" id="propertyInfoPanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Property Details</h6>
+                        <button class="btn-close" id="closeInfoBtn"></button>
+                    </div>
+                    <div id="propertyInfo"></div>
+                </div>
+
+                <!-- Loading Overlay -->
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Loading map data...</p>
+                </div>
+
+                <!-- Map Container -->
+                <div id="map"></div>
+
+                <!-- Zoom Indicator -->
+                <div class="zoom-indicator" id="zoomIndicator">
+                    Zoom: <span id="zoomLevel">16</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // Theme-aware color functions
+    function getThemeColor(variableName) {
+        return getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
+    }
+
+    function getMapColors() {
+        return {
+            featureStroke: getThemeColor('--feature-stroke'),
+            featureFill: getThemeColor('--feature-fill'),
+            featureHover: getThemeColor('--feature-hover'),
+            featureSelected: getThemeColor('--feature-selected'),
+            buildingStroke: getThemeColor('--building-stroke'),
+            buildingFill: getThemeColor('--building-fill')
+        };
+    }
+
+    // Initialize map centered on Sydney
+    const map = L.map('map').setView([-33.8688, 151.2093], 16);
+
+    // Base map layers - Clean and less cluttered options
+    const lightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CartoDB',
+        maxZoom: 21,
+        subdomains: 'abcd'
+    });
+
+    const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CartoDB',
+        maxZoom: 21,
+        subdomains: 'abcd'
+    });
+
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 21
+    });
+
+    const aerialLayer = L.tileLayer('https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; NSW Spatial Services',
+        maxZoom: 21
+    });
+
+    const osmLabelsLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 21,
+        opacity: 0.5
+    });
+
+    // Start with light clean map
+    lightLayer.addTo(map);
+
+    // Planning layers (WMS)
+    const zoningLayer = L.tileLayer.wms('https://mapprod3.environment.nsw.gov.au/arcgis/services/Planning/EPI_Primary_Planning_Layers/MapServer/WMSServer', {
+        layers: '1',
+        format: 'image/png',
+        transparent: true,
+        maxZoom: 19
+    });
+
+    const heritageLayer = L.tileLayer.wms('https://mapprod3.environment.nsw.gov.au/arcgis/services/Planning/EPI_Primary_Planning_Layers/MapServer/WMSServer', {
+        layers: '8',
+        format: 'image/png',
+        transparent: true,
+        maxZoom: 19
+    });
+
+    const floodLayer = L.tileLayer.wms('https://mapprod3.environment.nsw.gov.au/arcgis/services/Planning/EPI_Primary_Planning_Layers/MapServer/WMSServer', {
+        layers: '9',
+        format: 'image/png',
+        transparent: true,
+        maxZoom: 19
+    });
+
+    const bushfireLayer = L.tileLayer.wms('https://mapprod3.environment.nsw.gov.au/arcgis/services/Planning/EPI_Primary_Planning_Layers/MapServer/WMSServer', {
+        layers: '14',
+        format: 'image/png',
+        transparent: true,
+        maxZoom: 19
+    });
+
+    // NSW Vector Layers
+    const nswLotsLayer = L.layerGroup();
+    const nswBuildingsLayer = L.layerGroup();
+    const suburbLayer = L.layerGroup();
+
+    // Enhanced cache for loaded features with persistent tile storage
+    let nswLotsCache = new Map();  // Cache for rendered layers
+    let nswBuildingsCache = new Map();
+    let suburbCache = new Map();
+    let loadTimeout = null;
+    let currentLotsBounds = null;
+    let currentBuildingsBounds = null;
+    let currentSuburbBounds = null;
+    let persistentTileCache = new Map();  // Persistent cache of tile GeoJSON data
+
+    // Track selected lot for highlighting
+    let selectedLotLayer = null;
+
+    // Store current selected lot data for loading to generator
+    let currentSelectedLotData = null;
+
+    // Add NSW Lots by default
+    nswLotsLayer.addTo(map);
+
+    // Function to get cache key
+    function getCacheKey(layerName) {
+        const bounds = map.getBounds();
+        const zoom = map.getZoom();
+        return `${layerName}_${zoom}_${bounds.getWest().toFixed(3)}_${bounds.getSouth().toFixed(3)}_${bounds.getEast().toFixed(3)}_${bounds.getNorth().toFixed(3)}`;
+    }
+
+    // CHUNKED/TILED LOADING FOR NSW LOTS
+// Progressively loads lots in small tiles for faster rendering
+
+// Track loaded tiles and cached layers
+let loadedTiles = new Set();
+let currentTileLoad = null;
+let renderedLayers = new Map();  // Map of tile_id -> Leaflet layer
+
+// Load NSW Lots with OPTIMIZED CACHING - Only load NEW tiles when panning
+async function loadNSWLots() {
+    const zoom = map.getZoom();
+
+    // Only load lots at zoom 16 or greater
+    if (zoom < 16 || !map.hasLayer(nswLotsLayer)) {
+        nswLotsLayer.clearLayers();
+        loadedTiles.clear();
+        renderedLayers.clear();
+        persistentTileCache.clear();
+        return;
+    }
+
+    const bounds = map.getBounds();
+    const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+
+    // Cancel any pending load
+    if (currentTileLoad) {
+        currentTileLoad.cancelled = true;
+    }
+
+    const loadOperation = { cancelled: false };
+    currentTileLoad = loadOperation;
+
+    try {
+        // Get tiles for this viewport
+        const tilesResponse = await fetch(`/atlas/api/gis/tiles/Lots/?bbox=${bbox}&zoom=${zoom}`);
+        if (!tilesResponse.ok) {
+            console.error('Failed to get tiles');
+            return;
+        }
+
+        const tilesData = await tilesResponse.json();
+        if (!tilesData.success || loadOperation.cancelled) return;
+
+        const currentTileIds = new Set(tilesData.tiles.map(t => t.id));
+
+        // Remove old tiles that are no longer in view
+        for (const tileId of loadedTiles) {
+            if (!currentTileIds.has(tileId)) {
+                const layer = renderedLayers.get(tileId);
+                if (layer) {
+                    nswLotsLayer.removeLayer(layer);
+                    renderedLayers.delete(tileId);
+                }
+                loadedTiles.delete(tileId);
+                // Keep in persistent cache for potential reuse
+            }
+        }
+
+        // ONLY load tiles that aren't already loaded
+        const tilesToLoad = tilesData.tiles.filter(tile => !loadedTiles.has(tile.id));
+
+        if (tilesToLoad.length === 0) {
+            console.log('✓ All tiles already loaded (using cache)');
+            return;
+        }
+
+        console.log(`Loading ${tilesToLoad.length}/${tilesData.tile_count} new tiles (${loadedTiles.size} cached)...`);
+        const startTime = performance.now();
+
+        // Check persistent cache first, then fetch if needed
+        const tilePromises = tilesToLoad.map(async tile => {
+            // Check if we have this tile cached
+            if (persistentTileCache.has(tile.id)) {
+                console.log(`✓ Using cached tile ${tile.id}`);
+                return { tile, geojson: persistentTileCache.get(tile.id) };
+            }
+
+            // Fetch from server
+            try {
+                const response = await fetch(`/atlas/api/gis/tile/Lots/${tile.id}?bbox=${tile.bbox_str}&zoom=${zoom}`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    const featureCount = geojson.features?.length || 0;
+                    if (featureCount === 0) {
+                        console.warn(`Tile ${tile.id} has no features`);
+                    }
+                    // Cache the GeoJSON data
+                    persistentTileCache.set(tile.id, geojson);
+                    // Limit cache size to prevent memory issues
+                    if (persistentTileCache.size > 200) {
+                        const firstKey = persistentTileCache.keys().next().value;
+                        persistentTileCache.delete(firstKey);
+                    }
+                    return { tile, geojson };
+                } else {
+                    console.error(`Tile ${tile.id} failed: HTTP ${response.status}`);
+                    return { tile, geojson: null };
+                }
+            } catch (error) {
+                console.error(`Error loading tile ${tile.id}:`, error);
+                return { tile, geojson: null };
+            }
+        });
+
+        // Wait for ALL tiles to load
+        const results = await Promise.all(tilePromises);
+
+        // Check if cancelled during parallel load
+        if (loadOperation.cancelled) {
+            console.log('Tile loading cancelled');
+            return;
+        }
+
+        // Add all tiles to map (fast batch rendering)
+        let loadedCount = 0;
+        let emptyCount = 0;
+        let failedCount = 0;
+
+        for (const { tile, geojson } of results) {
+            if (loadOperation.cancelled) break;
+
+            if (!geojson) {
+                failedCount++;
+                continue;
+            }
+
+            if (!geojson.features || geojson.features.length === 0) {
+                emptyCount++;
+                continue;
+            }
+
+            try {
+                const colors = getMapColors();
+
+                // Create interactive layer with modern, minimal aesthetic
+                const layer = L.geoJSON(geojson, {
+                    style: {
+                        color: colors.featureStroke,
+                        weight: 0.75,
+                        fillColor: colors.featureFill,
+                        fillOpacity: 0,
+                        opacity: 0.6
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const props = feature.properties;
+
+                        layer.defaultStyle = {
+                            color: colors.featureStroke,
+                            weight: 0.75,
+                            fillColor: colors.featureFill,
+                            fillOpacity: 0,
+                            opacity: 0.6
+                        };
+
+                        // Hover - subtle highlight
+                        layer.on('mouseover', function(e) {
+                            if (layer !== selectedLotLayer) {
+                                const hoverColors = getMapColors();
+                                layer.setStyle({
+                                    color: hoverColors.featureHover,
+                                    weight: 1.5,
+                                    fillColor: hoverColors.featureHover,
+                                    fillOpacity: 0.08,
+                                    opacity: 0.9
+                                });
+                                layer.bringToFront();
+                            }
+                            map.getContainer().style.cursor = 'pointer';
+                        });
+
+                        layer.on('mouseout', function(e) {
+                            if (layer !== selectedLotLayer) {
+                                layer.setStyle(layer.defaultStyle);
+                            }
+                            map.getContainer().style.cursor = '';
+                        });
+
+                        // Click - clean blue highlight
+                        layer.on('click', function(e) {
+                            L.DomEvent.stopPropagation(e);
+
+                            if (selectedLotLayer && selectedLotLayer !== layer) {
+                                selectedLotLayer.setStyle(selectedLotLayer.defaultStyle);
+                            }
+
+                            const selectColors = getMapColors();
+                            layer.setStyle({
+                                color: selectColors.featureSelected,
+                                weight: 2,
+                                fillColor: selectColors.featureSelected,
+                                fillOpacity: 0.15,
+                                opacity: 1
+                            });
+                            layer.bringToFront();
+
+                            selectedLotLayer = layer;
+                            const center = layer.getBounds().getCenter();
+
+                            // Store selected lot data including geometry for dimensions calculation
+                            currentSelectedLotData = {
+                                feature: feature,
+                                props: props,
+                                bounds: layer.getBounds(),
+                                center: center
+                            };
+
+                            showPropertyDetails(props, center.lat, center.lng);
+                        });
+                    }
+                });
+
+                layer.addTo(nswLotsLayer);
+                loadedTiles.add(tile.id);
+                renderedLayers.set(tile.id, layer);
+                loadedCount++;
+
+            } catch (error) {
+                console.error(`Error rendering tile ${tile.id}:`, error);
+            }
+        }
+
+        if (!loadOperation.cancelled) {
+            const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+            console.log(`✓ Loaded ${loadedCount} tiles in ${elapsed}s | Total: ${loadedTiles.size} tiles visible`);
+        }
+
+    } catch (error) {
+        console.error('Error in chunked loading:', error);
+    }
+}
+
+    // Debounced loading for all layers - instant refresh on pan/zoom
+    function debouncedLoadLayers() {
+        if (loadTimeout) clearTimeout(loadTimeout);
+        loadTimeout = setTimeout(() => {
+            console.log('Auto-refreshing lots after pan/zoom...');
+            if (map.hasLayer(nswLotsLayer)) loadNSWLots();
+            if (map.hasLayer(nswBuildingsLayer)) loadNSWBuildings();
+            if (map.hasLayer(suburbLayer)) loadSuburb();
+        }, 50);  // 50ms for instant feel
+    }
+
+    // Load NSW Buildings - NON-INTERACTIVE
+    async function loadNSWBuildings() {
+        const zoom = map.getZoom();
+
+        if (zoom < 17 || !map.hasLayer(nswBuildingsLayer)) {
+            nswBuildingsLayer.clearLayers();
+            return;
+        }
+
+        const cacheKey = getCacheKey('nsw_buildings');
+        if (currentBuildingsBounds === cacheKey) return;
+
+        // Check cache - INSTANT LOAD
+        if (nswBuildingsCache.has(cacheKey)) {
+            nswBuildingsLayer.clearLayers();
+            nswBuildingsCache.get(cacheKey).addTo(nswBuildingsLayer);
+            currentBuildingsBounds = cacheKey;
+            return;
+        }
+
+        const bounds = map.getBounds();
+        const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+
+        try {
+            const url = `/api/gis/layer/nsw_buildings?bbox=${bbox}&zoom=${zoom}`;
+            const response = await fetch(url);
+            if (!response.ok) return;
+
+            const geojson = await response.json();
+            nswBuildingsLayer.clearLayers();
+
+            const colors = getMapColors();
+            // Non-interactive building footprints - subtle styling
+            const layer = L.geoJSON(geojson, {
+                style: {
+                    color: colors.buildingStroke,
+                    weight: 0.5,
+                    fillColor: colors.buildingFill,
+                    fillOpacity: 0.25,
+                    opacity: 0.5,
+                    interactive: false
+                }
+            });
+
+            layer.addTo(nswBuildingsLayer);
+
+            if (nswBuildingsCache.size > 30) {
+                const firstKey = nswBuildingsCache.keys().next().value;
+                nswBuildingsCache.delete(firstKey);
+            }
+            nswBuildingsCache.set(cacheKey, layer);
+            currentBuildingsBounds = cacheKey;
+
+            console.log(`Loaded ${geojson.features?.length || 0} buildings`);
+        } catch (error) {
+            console.error('Error loading NSW buildings:', error);
+        }
+    }
+
+    // Load Suburb layer
+    async function loadSuburb() {
+        const zoom = map.getZoom();
+
+        if (zoom < 10 || !map.hasLayer(suburbLayer)) {
+            suburbLayer.clearLayers();
+            return;
+        }
+
+        const cacheKey = getCacheKey('suburb');
+        if (currentSuburbBounds === cacheKey) return;
+
+        // Check cache
+        if (suburbCache.has(cacheKey)) {
+            suburbLayer.clearLayers();
+            suburbCache.get(cacheKey).addTo(suburbLayer);
+            currentSuburbBounds = cacheKey;
+            return;
+        }
+
+        const bounds = map.getBounds();
+        const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+
+        try {
+            const url = `/atlas/api/gis/layer/Suburb?bbox=${bbox}&zoom=${zoom}`;
+            const response = await fetch(url);
+            if (!response.ok) return;
+
+            const geojson = await response.json();
+            suburbLayer.clearLayers();
+
+            const colors = getMapColors();
+            const layer = L.geoJSON(geojson, {
+                style: {
+                    color: '#64748b',
+                    weight: 1,
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                    opacity: 0.4,
+                    dashArray: '4, 4'
+                },
+                onEachFeature: (feature, layer) => {
+                    if (feature.properties && feature.properties.name) {
+                        layer.bindTooltip(feature.properties.name || feature.properties.suburbname || 'Suburb', {
+                            permanent: false,
+                            direction: 'center',
+                            className: 'suburb-label'
+                        });
+                    }
+                }
+            });
+
+            layer.addTo(suburbLayer);
+
+            if (suburbCache.size > 30) {
+                const firstKey = suburbCache.keys().next().value;
+                suburbCache.delete(firstKey);
+            }
+            suburbCache.set(cacheKey, layer);
+            currentSuburbBounds = cacheKey;
+
+            console.log(`Loaded ${geojson.features?.length || 0} suburbs`);
+        } catch (error) {
+            console.error('Error loading suburbs:', error);
+        }
+    }
+
+    // Map event handlers - auto-refresh on pan and zoom
+    map.on('moveend', debouncedLoadLayers);
+    map.on('zoomend', function() {
+        console.log('Auto-refreshing lots after zoom change...');
+        // Update zoom indicator
+        document.getElementById('zoomLevel').textContent = map.getZoom();
+        if (map.hasLayer(nswLotsLayer)) loadNSWLots();
+        if (map.hasLayer(nswBuildingsLayer)) loadNSWBuildings();
+        if (map.hasLayer(suburbLayer)) loadSuburb();
+    });
+
+    // Click on map background to deselect lot
+    map.on('click', function(e) {
+        if (selectedLotLayer) {
+            selectedLotLayer.setStyle(selectedLotLayer.defaultStyle);
+            selectedLotLayer = null;
+            document.getElementById('propertyInfoPanel').style.display = 'none';
+        }
+    });
+
+    // Initial load
+    setTimeout(() => loadNSWLots(), 100);
+
+    // Base layer switching
+    document.querySelectorAll('input[name="baseLayer"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            // Remove all base layers
+            map.removeLayer(lightLayer);
+            map.removeLayer(darkLayer);
+            map.removeLayer(osmLayer);
+            map.removeLayer(aerialLayer);
+            map.removeLayer(osmLabelsLayer);
+
+            // Add selected layer
+            if (this.value === 'light') {
+                lightLayer.addTo(map);
+            } else if (this.value === 'dark') {
+                darkLayer.addTo(map);
+            } else if (this.value === 'osm') {
+                osmLayer.addTo(map);
+            } else if (this.value === 'aerial') {
+                aerialLayer.addTo(map);
+            } else if (this.value === 'hybrid') {
+                aerialLayer.addTo(map);
+                osmLabelsLayer.addTo(map);
+            }
+        });
+    });
+
+    // Planning layer toggles
+    document.getElementById('toggleZoning').addEventListener('change', function(e) {
+        e.target.checked ? map.addLayer(zoningLayer) : map.removeLayer(zoningLayer);
+    });
+
+    document.getElementById('toggleHeritage').addEventListener('change', function(e) {
+        e.target.checked ? map.addLayer(heritageLayer) : map.removeLayer(heritageLayer);
+    });
+
+    document.getElementById('toggleFlood').addEventListener('change', function(e) {
+        e.target.checked ? map.addLayer(floodLayer) : map.removeLayer(floodLayer);
+    });
+
+    document.getElementById('toggleBushfire').addEventListener('change', function(e) {
+        e.target.checked ? map.addLayer(bushfireLayer) : map.removeLayer(bushfireLayer);
+    });
+
+    // NSW layer toggles
+    document.getElementById('toggleNSWLots').addEventListener('change', function(e) {
+        if (e.target.checked) {
+            map.addLayer(nswLotsLayer);
+            loadNSWLots();
+        } else {
+            map.removeLayer(nswLotsLayer);
+        }
+    });
+
+    document.getElementById('toggleNSWBuildings').addEventListener('change', function(e) {
+        if (e.target.checked) {
+            map.addLayer(nswBuildingsLayer);
+            loadNSWBuildings();
+        } else {
+            map.removeLayer(nswBuildingsLayer);
+        }
+    });
+
+    document.getElementById('toggleSuburb').addEventListener('change', function(e) {
+        if (e.target.checked) {
+            map.addLayer(suburbLayer);
+            loadSuburb();
+        } else {
+            map.removeLayer(suburbLayer);
+        }
+    });
+
+    // Show property details with comprehensive lot information
+    async function showPropertyDetails(props, lat, lon) {
+        const panel = document.getElementById('propertyInfoPanel');
+        const infoDiv = document.getElementById('propertyInfo');
+
+        // Extract all available property data
+        const lot = props.lotnumber || props.lot || props.lotidstrin || 'N/A';
+        const dp = props.plannumber || props.planno || props.planlabel || props.planid || 'N/A';
+        const area = props.planlotare || props.planlota00 || props.calcarea || props.shape_area || null;
+        const address = props.address || props.propaddres || props.streetaddr || 'N/A';
+        const lga = props.lganame || props.councilnam || props.lga || props.council || 'N/A';
+        const suburb = props.suburbname || props.suburb || props.locality || '';
+        const postcode = props.postcode || props.pcode || '';
+        const state = props.state || 'NSW';
+        const cadid = props.cadid || props.objectid || props.id || '';
+        const createDate = props.createdate || props.created || '';
+        const modifyDate = props.modifydate || props.lastupdate || props.modified || '';
+
+        // Calculate dimensions from bounds if available
+        let dimensions = { width: null, depth: null };
+        if (currentSelectedLotData && currentSelectedLotData.bounds) {
+            dimensions = calculateLotDimensions(currentSelectedLotData.bounds, area);
+        }
+
+        // Format area display
+        const areaDisplay = area ? `${Math.round(area).toLocaleString()} m²` : 'N/A';
+        const areaHectares = area ? `(${(area / 10000).toFixed(3)} ha)` : '';
+
+        // Format dimensions
+        const dimensionsDisplay = dimensions.width && dimensions.depth
+            ? `${dimensions.width.toFixed(1)}m × ${dimensions.depth.toFixed(1)}m (approx)`
+            : 'N/A';
+
+        // Format coordinates
+        const latDisplay = lat.toFixed(6);
+        const lonDisplay = lon.toFixed(6);
+
+        // Show comprehensive info immediately
+        infoDiv.innerHTML = `
+            <div class="info-section">
+                <div class="section-header">
+                    <span class="section-icon">📍</span>
+                    <h6 class="mb-0">Location</h6>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Lot/DP:</span>
+                    <span class="info-value fw-bold">Lot ${lot} DP ${dp}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Address:</span>
+                    <span class="info-value">${address}</span>
+                </div>
+                ${suburb ? `
+                <div class="info-row">
+                    <span class="info-label">Suburb:</span>
+                    <span class="info-value">${suburb}${postcode ? ` ${postcode}` : ''} ${state}</span>
+                </div>
+                ` : ''}
+                <div class="info-row">
+                    <span class="info-label">Council/LGA:</span>
+                    <span class="info-value">${lga}</span>
+                </div>
+                <div class="info-row coordinates-row">
+                    <span class="info-label">Coordinates:</span>
+                    <span class="info-value">
+                        <span class="coord-value">${latDisplay}, ${lonDisplay}</span>
+                        <button class="btn btn-xs btn-outline-secondary copy-btn" onclick="copyToClipboard('${latDisplay}, ${lonDisplay}')" title="Copy coordinates">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </span>
+                </div>
+            </div>
+
+            <div class="info-section mt-3">
+                <div class="section-header">
+                    <span class="section-icon">📐</span>
+                    <h6 class="mb-0">Site Metrics</h6>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Site Area:</span>
+                    <span class="info-value fw-bold">${areaDisplay} <small class="text-muted">${areaHectares}</small></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Dimensions:</span>
+                    <span class="info-value">${dimensionsDisplay}</span>
+                </div>
+                ${cadid ? `
+                <div class="info-row">
+                    <span class="info-label">Cadastre ID:</span>
+                    <span class="info-value text-muted small">${cadid}</span>
+                </div>
+                ` : ''}
+            </div>
+
+            <div class="info-section mt-3" id="planningSection">
+                <div class="section-header">
+                    <span class="section-icon">📋</span>
+                    <h6 class="mb-0">Planning Controls</h6>
+                </div>
+                <div class="loading-placeholder">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                    <span class="text-muted small">Fetching planning data...</span>
+                </div>
+            </div>
+        `;
+
+        panel.style.display = 'block';
+
+        // Fetch comprehensive planning information
+        try {
+            const planningData = await fetchPlanningInfo(lat, lon);
+
+            // Update planning section with comprehensive data
+            const planningSection = document.getElementById('planningSection');
+            planningSection.innerHTML = `
+                <div class="section-header">
+                    <span class="section-icon">📋</span>
+                    <h6 class="mb-0">Planning Controls</h6>
+                </div>
+
+                <div class="planning-item ${planningData.zoning ? 'has-data' : ''}">
+                    <div class="info-row">
+                        <span class="info-label">Land Zoning:</span>
+                        <span class="info-value">
+                            ${planningData.zoning ? `<span class="badge bg-primary">${planningData.zoning}</span>` : '<span class="text-muted">Not available</span>'}
+                        </span>
+                    </div>
+                    ${planningData.zoningName ? `<div class="planning-detail">${planningData.zoningName}</div>` : ''}
+                </div>
+
+                ${planningData.fsr ? `
+                <div class="planning-item has-data">
+                    <div class="info-row">
+                        <span class="info-label">FSR Control:</span>
+                        <span class="info-value"><span class="badge bg-info">${planningData.fsr}:1</span></span>
+                    </div>
+                    ${area ? `<div class="planning-detail">Max GFA: ${Math.round(area * planningData.fsr).toLocaleString()} m²</div>` : ''}
+                </div>
+                ` : ''}
+
+                ${planningData.height ? `
+                <div class="planning-item has-data">
+                    <div class="info-row">
+                        <span class="info-label">Height Limit:</span>
+                        <span class="info-value"><span class="badge bg-info">${planningData.height}m</span></span>
+                    </div>
+                    <div class="planning-detail">Approx ${Math.floor(planningData.height / 3.2)} storeys</div>
+                </div>
+                ` : ''}
+
+                ${planningData.minLotSize ? `
+                <div class="planning-item has-data">
+                    <div class="info-row">
+                        <span class="info-label">Min Lot Size:</span>
+                        <span class="info-value">${planningData.minLotSize} m²</span>
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="planning-item ${planningData.heritage && planningData.heritage !== 'No' ? 'alert-item' : ''}">
+                    <div class="info-row">
+                        <span class="info-label">Heritage:</span>
+                        <span class="info-value">
+                            ${planningData.heritage && planningData.heritage !== 'No'
+                                ? `<span class="badge bg-warning text-dark">${planningData.heritage}</span>`
+                                : '<span class="text-success small">No heritage listing</span>'}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="planning-item ${planningData.flood && planningData.flood !== 'No' ? 'alert-item' : ''}">
+                    <div class="info-row">
+                        <span class="info-label">Flood Planning:</span>
+                        <span class="info-value">
+                            ${planningData.flood && planningData.flood !== 'No'
+                                ? `<span class="badge bg-danger">${planningData.flood}</span>`
+                                : '<span class="text-success small">Not flood affected</span>'}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="planning-item ${planningData.bushfire && planningData.bushfire !== 'No' ? 'alert-item' : ''}">
+                    <div class="info-row">
+                        <span class="info-label">Bushfire Prone:</span>
+                        <span class="info-value">
+                            ${planningData.bushfire && planningData.bushfire !== 'No'
+                                ? `<span class="badge bg-danger">${planningData.bushfire}</span>`
+                                : '<span class="text-success small">Not bushfire prone</span>'}
+                        </span>
+                    </div>
+                </div>
+
+                ${planningData.acid ? `
+                <div class="planning-item ${planningData.acid !== 'No' ? 'alert-item' : ''}">
+                    <div class="info-row">
+                        <span class="info-label">Acid Sulfate:</span>
+                        <span class="info-value">
+                            ${planningData.acid !== 'No'
+                                ? `<span class="badge bg-warning text-dark">Class ${planningData.acid}</span>`
+                                : '<span class="text-success small">Not affected</span>'}
+                        </span>
+                    </div>
+                </div>
+                ` : ''}
+
+                ${planningData.contaminated ? `
+                <div class="planning-item alert-item">
+                    <div class="info-row">
+                        <span class="info-label">Contamination:</span>
+                        <span class="info-value"><span class="badge bg-danger">Potential contamination</span></span>
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="mt-3 pt-2 border-top">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a href="https://www.planningportal.nsw.gov.au/spatialviewer/#/find-a-property/address"
+                           target="_blank"
+                           class="btn btn-sm btn-outline-primary flex-fill">
+                            <i class="bi bi-box-arrow-up-right"></i> Planning Portal
+                        </a>
+                        <a href="https://maps.six.nsw.gov.au/"
+                           target="_blank"
+                           class="btn btn-sm btn-outline-secondary flex-fill">
+                            <i class="bi bi-map"></i> SIX Maps
+                        </a>
+                    </div>
+                </div>
+
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-primary w-100" onclick="loadToGenerator()">
+                        <i class="bi bi-box-arrow-right"></i> Load to Generator
+                    </button>
+                </div>
+            `;
+        } catch (error) {
+            console.error('Error fetching planning info:', error);
+            const planningSection = document.getElementById('planningSection');
+            planningSection.innerHTML = `
+                <div class="section-header">
+                    <span class="section-icon">📋</span>
+                    <h6 class="mb-0">Planning Controls</h6>
+                </div>
+                <div class="alert alert-warning p-2 small mb-2">
+                    <i class="bi bi-exclamation-triangle"></i> Unable to fetch planning data
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="https://www.planningportal.nsw.gov.au/spatialviewer/#/find-a-property/address"
+                       target="_blank"
+                       class="btn btn-sm btn-outline-primary flex-fill">
+                        <i class="bi bi-box-arrow-up-right"></i> Planning Portal
+                    </a>
+                </div>
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-primary w-100" onclick="loadToGenerator()">
+                        <i class="bi bi-box-arrow-right"></i> Load to Generator
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    // Copy text to clipboard helper
+    window.copyToClipboard = function(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            // Brief visual feedback could be added here
+            console.log('Copied to clipboard:', text);
+        });
+    };
+
+    // Fetch planning information from NSW Planning Portal WMS services
+    async function fetchPlanningInfo(lat, lon) {
+        const planningData = {
+            zoning: null,
+            zoningName: null,
+            fsr: null,
+            height: null,
+            minLotSize: null,
+            heritage: null,
+            flood: null,
+            bushfire: null,
+            acid: null,
+            contaminated: null,
+            additionalInfo: null
+        };
+
+        try {
+            // First try our backend API
+            const response = await fetch(`/api/gis/query/point?lat=${lat}&lon=${lon}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.planning) {
+                    return { ...planningData, ...data.planning };
+                }
+            }
+        } catch (error) {
+            console.log('Backend API not available, using WMS fallback');
+        }
+
+        // WMS GetFeatureInfo query for NSW Planning Portal
+        try {
+            const bounds = map.getBounds();
+            const size = map.getSize();
+            const point = map.latLngToContainerPoint([lat, lon]);
+
+            // Build WMS GetFeatureInfo URL
+            const baseUrl = 'https://mapprod3.environment.nsw.gov.au/arcgis/services/Planning/EPI_Primary_Planning_Layers/MapServer/WMSServer';
+
+            // Query parameters for GetFeatureInfo
+            const params = new URLSearchParams({
+                SERVICE: 'WMS',
+                VERSION: '1.1.1',
+                REQUEST: 'GetFeatureInfo',
+                FORMAT: 'image/png',
+                TRANSPARENT: 'true',
+                QUERY_LAYERS: '1,2,3,4,5,6,7,8,9,10,14',  // Zoning, FSR, HOB, Min lot, Heritage, Flood, Bushfire
+                LAYERS: '1,2,3,4,5,6,7,8,9,10,14',
+                INFO_FORMAT: 'application/json',
+                FEATURE_COUNT: '10',
+                X: Math.round(point.x),
+                Y: Math.round(point.y),
+                SRS: 'EPSG:4326',
+                WIDTH: size.x,
+                HEIGHT: size.y,
+                BBOX: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`
+            });
+
+            const wmsResponse = await fetch(`${baseUrl}?${params.toString()}`);
+            if (wmsResponse.ok) {
+                const contentType = wmsResponse.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const wmsData = await wmsResponse.json();
+
+                    // Parse WMS response for planning information
+                    if (wmsData.features && wmsData.features.length > 0) {
+                        wmsData.features.forEach(feature => {
+                            const props = feature.properties || {};
+                            const layerId = feature.layerId || feature.id;
+
+                            // Land Zoning (Layer 1)
+                            if (props.LAY_CLASS || props.SYM_CODE || props.ZONE_CODE) {
+                                planningData.zoning = props.LAY_CLASS || props.SYM_CODE || props.ZONE_CODE;
+                                planningData.zoningName = props.LAY_NAME || props.ZONE_NAME || props.LABEL;
+                            }
+
+                            // FSR (Layer 2)
+                            if (props.FSR || props.LAY_CLASS?.includes(':')) {
+                                const fsrMatch = (props.FSR || props.LAY_CLASS || '').match(/(\d+\.?\d*)/);
+                                if (fsrMatch) planningData.fsr = parseFloat(fsrMatch[1]);
+                            }
+
+                            // Height of Buildings (Layer 3)
+                            if (props.HOB || props.MAX_B_H || props.HEIGHT) {
+                                const hobMatch = (props.HOB || props.MAX_B_H || props.HEIGHT || '').toString().match(/(\d+\.?\d*)/);
+                                if (hobMatch) planningData.height = parseFloat(hobMatch[1]);
+                            }
+
+                            // Min Lot Size (Layer 4)
+                            if (props.LOT_SIZE || props.MIN_LOT) {
+                                const lotMatch = (props.LOT_SIZE || props.MIN_LOT || '').toString().match(/(\d+)/);
+                                if (lotMatch) planningData.minLotSize = parseInt(lotMatch[1]);
+                            }
+
+                            // Heritage (Layer 8)
+                            if (props.HERITAGE || props.HER_NAME || props.SIGNIFICANCE) {
+                                planningData.heritage = props.HER_NAME || props.HERITAGE || props.SIGNIFICANCE || 'Listed';
+                            }
+
+                            // Flood Planning (Layer 9)
+                            if (props.FLOOD || props.FLD_ZONE || props.LAY_CLASS?.toLowerCase().includes('flood')) {
+                                planningData.flood = props.FLOOD || props.FLD_ZONE || 'Flood affected';
+                            }
+
+                            // Bushfire (Layer 14)
+                            if (props.BUSHFIRE || props.CATEGORY || props.BF_ZONE) {
+                                planningData.bushfire = props.CATEGORY || props.BF_ZONE || props.BUSHFIRE || 'Bushfire prone';
+                            }
+
+                            // Acid Sulfate Soils
+                            if (props.ACID || props.ASS_CLASS) {
+                                planningData.acid = props.ASS_CLASS || props.ACID;
+                            }
+                        });
+                    }
+                }
+            }
+        } catch (wmsError) {
+            console.log('WMS query failed:', wmsError.message);
+        }
+
+        // Fallback: Check which layers are visible on map
+        if (!planningData.zoning && map.hasLayer(zoningLayer)) {
+            planningData.zoning = 'Enable zoning layer to view';
+        }
+        if (!planningData.heritage && map.hasLayer(heritageLayer)) {
+            planningData.heritage = 'Check map overlay';
+        }
+        if (!planningData.flood && map.hasLayer(floodLayer)) {
+            planningData.flood = 'Check map overlay';
+        }
+        if (!planningData.bushfire && map.hasLayer(bushfireLayer)) {
+            planningData.bushfire = 'Check map overlay';
+        }
+
+        return planningData;
+    }
+
+    // Close info panel
+    document.getElementById('closeInfoBtn').addEventListener('click', function() {
+        document.getElementById('propertyInfoPanel').style.display = 'none';
+    });
+
+    // Search functionality
+    document.getElementById('searchBtn').addEventListener('click', async function() {
+        const address = document.getElementById('addressSearch').value;
+        if (!address) return alert('Please enter an address');
+
+        document.getElementById('loadingOverlay').style.display = 'block';
+
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', NSW, Australia')}&limit=5`);
+            const results = await response.json();
+
+            document.getElementById('loadingOverlay').style.display = 'none';
+
+            if (results.length === 0) return alert('No results found');
+
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = '<strong class="d-block mb-2">Results:</strong>';
+
+            results.forEach(result => {
+                const div = document.createElement('div');
+                div.className = 'p-2 mb-2 border rounded cursor-pointer hover:bg-light';
+                div.style.cursor = 'pointer';
+                div.innerHTML = `<small>${result.display_name}</small>`;
+                div.onclick = function() {
+                    map.setView([result.lat, result.lon], 18);
+                    if (!map.hasLayer(nswLotsLayer)) {
+                        map.addLayer(nswLotsLayer);
+                        document.getElementById('toggleNSWLots').checked = true;
+                    }
+                    currentLotsBounds = null;
+                    loadNSWLots();
+                };
+                resultsDiv.appendChild(div);
+            });
+        } catch (error) {
+            document.getElementById('loadingOverlay').style.display = 'none';
+            alert('Error searching: ' + error.message);
+        }
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', function() {
+        document.getElementById('addressSearch').value = '';
+        document.getElementById('searchResults').innerHTML = '';
+        document.getElementById('propertyInfoPanel').style.display = 'none';
+    });
+
+    // Collapsible layer control toggle
+    document.getElementById('layerControlToggle').addEventListener('click', function() {
+        const content = document.getElementById('layerControlContent');
+        const icon = this.querySelector('.collapse-icon');
+
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            icon.classList.remove('collapsed');
+        } else {
+            content.style.display = 'none';
+            icon.classList.add('collapsed');
+        }
+    });
+
+    // Base map collapsible toggle
+    document.getElementById('baseMapToggle').addEventListener('click', function() {
+        const options = document.getElementById('baseMapOptions');
+        const icon = this.querySelector('.expand-icon');
+
+        if (options.style.display === 'none') {
+            options.style.display = 'block';
+            this.classList.remove('collapsed');
+            icon.textContent = '▼';
+        } else {
+            options.style.display = 'none';
+            this.classList.add('collapsed');
+            icon.textContent = '▶';
+        }
+    });
+
+    // Base map option click handler (visual active state)
+    document.querySelectorAll('.base-map-option').forEach(option => {
+        option.addEventListener('click', function() {
+            document.querySelectorAll('.base-map-option').forEach(opt => opt.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    // Update layer status indicators based on zoom level
+    function updateLayerStatus() {
+        const zoom = map.getZoom();
+
+        // Lots status (requires zoom 16+)
+        const lotsStatus = document.getElementById('lotsStatus');
+        const lotsToggle = document.getElementById('toggleNSWLots');
+        if (lotsStatus) {
+            if (!lotsToggle.checked) {
+                lotsStatus.textContent = 'Off';
+                lotsStatus.className = 'layer-status';
+            } else if (zoom < 16) {
+                lotsStatus.textContent = 'Zoom in';
+                lotsStatus.className = 'layer-status zoom-required';
+            } else {
+                lotsStatus.textContent = 'Active';
+                lotsStatus.className = 'layer-status active';
+            }
+        }
+
+        // Suburb status (requires zoom 10+)
+        const suburbStatus = document.getElementById('suburbStatus');
+        const suburbToggle = document.getElementById('toggleSuburb');
+        if (suburbStatus) {
+            if (!suburbToggle.checked) {
+                suburbStatus.textContent = 'Zoom 10+';
+                suburbStatus.className = 'layer-status';
+            } else if (zoom < 10) {
+                suburbStatus.textContent = 'Zoom in';
+                suburbStatus.className = 'layer-status zoom-required';
+            } else {
+                suburbStatus.textContent = 'Active';
+                suburbStatus.className = 'layer-status active';
+            }
+        }
+
+        // Buildings status (requires zoom 17+)
+        const buildingsStatus = document.getElementById('buildingsStatus');
+        const buildingsToggle = document.getElementById('toggleNSWBuildings');
+        if (buildingsStatus) {
+            if (!buildingsToggle.checked) {
+                buildingsStatus.textContent = 'Zoom 17+';
+                buildingsStatus.className = 'layer-status';
+            } else if (zoom < 17) {
+                buildingsStatus.textContent = 'Zoom in';
+                buildingsStatus.className = 'layer-status zoom-required';
+            } else {
+                buildingsStatus.textContent = 'Active';
+                buildingsStatus.className = 'layer-status active';
+            }
+        }
+    }
+
+    // Update status on zoom change and layer toggle
+    map.on('zoomend', updateLayerStatus);
+    document.getElementById('toggleNSWLots').addEventListener('change', updateLayerStatus);
+    document.getElementById('toggleSuburb').addEventListener('change', updateLayerStatus);
+    document.getElementById('toggleNSWBuildings').addEventListener('change', updateLayerStatus);
+
+    // Initial status update
+    setTimeout(updateLayerStatus, 200);
+
+    // Listen for theme changes and reload layers to update colors
+    window.addEventListener('themeChanged', function(e) {
+        console.log('Theme changed to:', e.detail.theme);
+
+        // Reload NSW lots layer to update feature colors
+        if (map.hasLayer(nswLotsLayer)) {
+            nswLotsLayer.clearLayers();
+            loadedTiles.clear();
+            renderedLayers.clear();
+            setTimeout(() => loadNSWLots(), 100);
+        }
+
+        // Reload buildings layer to update colors
+        if (map.hasLayer(nswBuildingsLayer)) {
+            nswBuildingsLayer.clearLayers();
+            currentBuildingsBounds = null;
+            setTimeout(() => loadNSWBuildings(), 100);
+        }
+    });
+
+    /**
+     * Calculate lot dimensions from geometry bounds
+     * Uses the bounding box to estimate width and depth
+     * More accurate for rectangular lots
+     */
+    function calculateLotDimensions(bounds, area) {
+        // Get bounding box dimensions in meters
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+        const se = L.latLng(sw.lat, ne.lng);
+        const nw = L.latLng(ne.lat, sw.lng);
+
+        // Calculate width (east-west) and depth (north-south) in meters
+        const widthMeters = sw.distanceTo(se);
+        const depthMeters = sw.distanceTo(nw);
+
+        // For irregular lots, the bounding box overestimates dimensions
+        // Use the area to scale down proportionally if we have it
+        if (area && area > 0) {
+            const bboxArea = widthMeters * depthMeters;
+            if (bboxArea > area) {
+                // Scale factor to account for lot shape (lot doesn't fill bbox)
+                const scaleFactor = Math.sqrt(area / bboxArea);
+                return {
+                    width: Math.round(widthMeters * scaleFactor * 10) / 10,
+                    depth: Math.round(depthMeters * scaleFactor * 10) / 10
+                };
+            }
+        }
+
+        return {
+            width: Math.round(widthMeters * 10) / 10,
+            depth: Math.round(depthMeters * 10) / 10
+        };
+    }
+
+    /**
+     * Load selected lot data to the Building Generator
+     * Stores lot info in sessionStorage and navigates to generator
+     */
+    window.loadToGenerator = function() {
+        if (!currentSelectedLotData) {
+            alert('Please select a lot first');
+            return;
+        }
+
+        const props = currentSelectedLotData.props;
+        const bounds = currentSelectedLotData.bounds;
+
+        // Extract property values
+        const lot = props.lotnumber || props.lot || '';
+        const dp = props.plannumber || props.planno || props.planlabel || '';
+        const area = parseFloat(props.planlotare || props.planlota00 || props.calcarea || 0);
+        const address = props.address || '';
+        const lga = props.lganame || props.councilnam || props.lga || '';
+
+        // Calculate dimensions from geometry
+        const dimensions = calculateLotDimensions(bounds, area);
+
+        // Prepare data for generator
+        const lotData = {
+            lot: lot,
+            dp: dp,
+            area: area || (dimensions.width * dimensions.depth),
+            address: address,
+            lga: lga,
+            width: dimensions.width,
+            depth: dimensions.depth
+        };
+
+        console.log('Loading lot data to generator:', lotData);
+
+        // Store in sessionStorage for the generator to read
+        sessionStorage.setItem('selectedLot', JSON.stringify(lotData));
+
+        // Navigate to generator
+        window.location.href = '/generator/building-generator/';
+    };
+</script>
+{% endblock %}

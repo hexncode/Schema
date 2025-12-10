@@ -1,0 +1,32 @@
+# Django
+Django>=5.0.0
+
+# Data processing and financial calculations
+numpy>=1.24.0
+pandas>=2.0.0
+numpy-financial==1.0.0
+plotly>=5.18.0
+python-dateutil>=2.8.0
+
+# GIS (supports both file-based and PostGIS database)
+geopandas>=0.14.0
+fiona>=1.9.0
+shapely>=2.0.0
+pyproj>=3.6.0
+rtree>=1.0.0
+pyogrio>=0.7.0  # Fast GeoPackage reader (used for optimized loading)
+
+# PostgreSQL/PostGIS database support
+psycopg2-binary>=2.9.0  # PostgreSQL adapter
+
+# HTTP
+requests>=2.31.0
+
+# Production server
+gunicorn>=21.2.0
+
+# Note: GDAL is required by geopandas and GeoDjango
+# Installation on Windows:
+# Option 1 (easiest): conda install -c conda-forge geopandas gdal
+# Option 2: Use Docker (recommended) - see docker-compose.yml
+# Option 3: pip install from wheels at https://www.lfd.uci.edu/~gohlke/pythonlibs/

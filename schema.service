@@ -1,0 +1,22 @@
+[Unit]
+Description=Schema Property Development Analysis
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+RuntimeDirectory=gunicorn
+WorkingDirectory=/var/www/schema
+Environment="PATH=/var/www/schema/venv/bin"
+EnvironmentFile=/var/www/schema/.env
+ExecStart=/var/www/schema/venv/bin/gunicorn -c gunicorn_config.py wsgi:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

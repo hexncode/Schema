@@ -1,0 +1,3606 @@
+{% extends "frontend/base.html" %}
+
+{% block extra_css %}
+<style>
+    /* Main Layout */
+    .building-generator-container {
+        display: flex;
+        gap: 15px;
+        height: calc(100vh - 100px);
+    }
+
+    /* Left Panel - Controls */
+    .controls-panel {
+        width: 300px;
+        background: var(--bg-primary);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-md);
+        padding: 20px;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+    }
+
+    .controls-panel h6 {
+        color: var(--primary-color);
+        font-weight: 600;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--schema-cyan);
+    }
+
+    /* Center - 3D Viewer */
+    .viewer-panel {
+        flex: 1;
+        background: var(--bg-primary);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+        position: relative;
+        border: 1px solid var(--border-color);
+    }
+
+    #canvas3d {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    .viewer-controls {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        background: var(--bg-primary);
+        padding: 12px 15px;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        font-size: 0.85rem;
+        z-index: 10;
+        border: 1px solid var(--border-color);
+    }
+
+    .viewer-controls h6 {
+        margin: 0 0 8px 0;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--primary-color);
+    }
+
+    .viewer-controls p {
+        margin: 3px 0;
+        color: var(--text-secondary);
+    }
+
+    /* Right Panel - Options */
+    .options-panel {
+        width: 320px;
+        background: var(--bg-primary);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-md);
+        padding: 20px;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+    }
+
+    .options-panel h6 {
+        color: var(--primary-color);
+        font-weight: 600;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--schema-cyan);
+    }
+
+    /* Form Controls */
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        margin-bottom: 8px;
+        display: block;
+    }
+
+    .form-group .value-display {
+        float: right;
+        color: var(--secondary-color);
+        font-weight: 600;
+    }
+
+    .form-control, .form-range {
+        font-size: 0.9rem;
+    }
+
+    .info-text {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    /* Generated Options */
+    .option-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        padding: 15px;
+        margin-bottom: 15px;
+        cursor: pointer;
+        transition: all var(--transition-base);
+    }
+
+    .option-card:hover {
+        border-color: var(--schema-cyan);
+        box-shadow: var(--shadow-md);
+    }
+
+    .option-card.selected {
+        border-color: var(--schema-cyan);
+        background: var(--info-light);
+    }
+
+    .option-card h6 {
+        margin: 0 0 10px 0;
+        font-size: 0.95rem;
+        color: var(--primary-color);
+    }
+
+    .option-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 12px;
+        font-size: 0.8rem;
+    }
+
+    .option-stat {
+        background: white;
+        padding: 6px 8px;
+        border-radius: 5px;
+        text-align: center;
+    }
+
+    .option-stat-label {
+        color: var(--text-secondary);
+        font-size: 0.7rem;
+        margin-bottom: 2px;
+    }
+
+    .option-stat-value {
+        font-weight: 600;
+        color: var(--primary-color);
+        font-size: 0.85rem;
+    }
+
+    .option-thumbnail {
+        width: 100%;
+        height: 120px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 5px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.75rem;
+        text-align: center;
+        padding: 10px;
+    }
+
+    .btn-sm {
+        font-size: 0.8rem;
+        padding: 6px 12px;
+    }
+
+    .site-info {
+        background: var(--bg-secondary);
+        padding: 12px;
+        border-radius: var(--radius-lg);
+        margin-bottom: 20px;
+        font-size: 0.85rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .site-info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+    }
+
+    .site-info-label {
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .site-info-value {
+        color: var(--primary-color);
+        font-weight: 600;
+    }
+
+    .no-options {
+        text-align: center;
+        padding: 40px 20px;
+        color: #999;
+    }
+
+    .loading-indicator {
+        text-align: center;
+        padding: 20px;
+        display: none;
+    }
+
+    .loading-indicator.active {
+        display: block;
+    }
+
+    .manual-entry-section {
+        background: #f0f8ff;
+        border: 1px solid #b8d4f1;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    .manual-entry-section h6 {
+        color: #1976d2;
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #b8d4f1;
+        padding-bottom: 5px;
+    }
+
+    .manual-entry-section .info-text {
+        font-size: 0.7rem;
+        color: #1976d2;
+        font-style: italic;
+        margin-top: 8px;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 1400px) {
+        .controls-panel, .options-panel {
+            width: 280px;
+        }
+    }
+
+    /* Compliance Floating Window */
+    .compliance-window {
+        display: none;
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        width: 420px;
+        max-height: calc(100vh - 100px);
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        z-index: 1000;
+        overflow: hidden;
+    }
+
+    .compliance-window.active {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .compliance-window.minimized {
+        max-height: 50px;
+    }
+
+    .compliance-window.minimized .compliance-body {
+        display: none;
+    }
+
+    .compliance-header {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        padding: 12px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: move;
+        user-select: none;
+    }
+
+    .compliance-header h6 {
+        margin: 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+    }
+
+    .compliance-header-controls {
+        display: flex;
+        gap: 8px;
+    }
+
+    .compliance-btn-control {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+    }
+
+    .compliance-btn-control:hover {
+        background: rgba(255,255,255,0.3);
+    }
+
+    .compliance-body {
+        overflow-y: auto;
+        max-height: calc(100vh - 100px);
+    }
+
+    .compliance-tabs {
+        display: flex;
+        background: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .compliance-tab {
+        flex: 1;
+        padding: 10px 8px;
+        text-align: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        border-bottom: 3px solid transparent;
+    }
+
+    .compliance-tab:hover {
+        background: #e9ecef;
+    }
+
+    .compliance-tab.active {
+        color: var(--primary-color);
+        background: white;
+        border-bottom-color: var(--secondary-color);
+    }
+
+    .compliance-tab-content {
+        display: none;
+        padding: 15px;
+    }
+
+    .compliance-tab-content.active {
+        display: block;
+    }
+
+    /* Metrics Grid */
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+
+    .metric-box {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 6px;
+        border-left: 3px solid var(--secondary-color);
+    }
+
+    .metric-label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    .metric-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    .metric-value.large {
+        font-size: 1.4rem;
+    }
+
+    /* Compliance Items - Compact */
+    .compliance-item-compact {
+        background: #f8f9fa;
+        border-radius: 6px;
+        padding: 10px;
+        margin-bottom: 8px;
+        border-left: 4px solid #dee2e6;
+    }
+
+    .compliance-item-compact.pass {
+        border-left-color: #28a745;
+        background: #f8fff9;
+    }
+
+    .compliance-item-compact.partial {
+        border-left-color: #ffc107;
+        background: #fffef8;
+    }
+
+    .compliance-item-compact.fail {
+        border-left-color: #dc3545;
+        background: #fff8f8;
+    }
+
+    .compliance-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+
+    .compliance-item-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .compliance-item-status {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 12px;
+    }
+
+    .compliance-item-compact.pass .compliance-item-status {
+        background: #28a745;
+        color: white;
+    }
+
+    .compliance-item-compact.partial .compliance-item-status {
+        background: #ffc107;
+        color: white;
+    }
+
+    .compliance-item-compact.fail .compliance-item-status {
+        background: #dc3545;
+        color: white;
+    }
+
+    .compliance-item-detail {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-bottom: 2px;
+    }
+
+    .compliance-item-actual {
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .compliance-item-compact.pass .compliance-item-actual {
+        color: #28a745;
+    }
+
+    .compliance-item-compact.partial .compliance-item-actual {
+        color: #e68a00;
+    }
+
+    .compliance-item-compact.fail .compliance-item-actual {
+        color: #dc3545;
+    }
+
+    .compliance-section-compact {
+        margin-bottom: 15px;
+    }
+
+    .compliance-section-header {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 8px;
+        padding-bottom: 5px;
+        border-bottom: 2px solid var(--schema-cyan);
+    }
+
+    .compliance-summary-compact {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+
+    .compliance-summary-item {
+        flex: 1;
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 6px;
+        text-align: center;
+    }
+
+    .compliance-summary-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 3px;
+    }
+
+    .compliance-summary-value.pass { color: #28a745; }
+    .compliance-summary-value.partial { color: #ffc107; }
+    .compliance-summary-value.fail { color: #dc3545; }
+
+    .compliance-summary-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    /* ADG Standards Popup - Small Collapsible */
+    .adg-popup {
+        display: none;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 340px;
+        max-height: 400px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        z-index: 1001;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+    }
+
+    .adg-popup.active {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .adg-popup.collapsed {
+        max-height: 44px;
+    }
+
+    .adg-popup.collapsed .adg-popup-body {
+        display: none;
+    }
+
+    .adg-popup-header {
+        background: linear-gradient(135deg, #2e7d32, #4caf50);
+        color: white;
+        padding: 10px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        min-height: 44px;
+    }
+
+    .adg-popup-header h6 {
+        margin: 0;
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .adg-popup-header .adg-status-badge {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 10px;
+        background: rgba(255,255,255,0.2);
+    }
+
+    .adg-popup-header-controls {
+        display: flex;
+        gap: 6px;
+    }
+
+    .adg-popup-btn {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 22px;
+        height: 22px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+    }
+
+    .adg-popup-btn:hover {
+        background: rgba(255,255,255,0.3);
+    }
+
+    .adg-popup-body {
+        overflow-y: auto;
+        max-height: 356px;
+        padding: 12px;
+    }
+
+    .adg-popup-summary {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .adg-popup-summary-item {
+        flex: 1;
+        text-align: center;
+        padding: 8px;
+        border-radius: 6px;
+        background: #f8f9fa;
+    }
+
+    .adg-popup-summary-value {
+        font-size: 1.2rem;
+        font-weight: 700;
+    }
+
+    .adg-popup-summary-value.pass { color: #28a745; }
+    .adg-popup-summary-value.partial { color: #ffc107; }
+    .adg-popup-summary-value.fail { color: #dc3545; }
+
+    .adg-popup-summary-label {
+        font-size: 0.6rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    .adg-item {
+        background: #f8f9fa;
+        border-radius: 6px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        border-left: 3px solid #dee2e6;
+        font-size: 0.8rem;
+    }
+
+    .adg-item.pass { border-left-color: #28a745; background: #f8fff9; }
+    .adg-item.partial { border-left-color: #ffc107; background: #fffef8; }
+    .adg-item.fail { border-left-color: #dc3545; background: #fff8f8; }
+
+    .adg-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .adg-item-title {
+        font-weight: 600;
+        color: #333;
+        font-size: 0.75rem;
+    }
+
+    .adg-item-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 8px;
+        color: white;
+    }
+
+    .adg-item.pass .adg-item-badge { background: #28a745; }
+    .adg-item.partial .adg-item-badge { background: #ffc107; }
+    .adg-item.fail .adg-item-badge { background: #dc3545; }
+
+    .adg-item-detail {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        margin-top: 3px;
+    }
+
+    .adg-section-title {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #2e7d32;
+        margin: 10px 0 6px 0;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #4caf50;
+    }
+
+    .adg-section-title:first-child {
+        margin-top: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="building-generator-container">
+    <!-- Left Panel - Building Parameters -->
+    <div class="controls-panel">
+        <h6>Site Information</h6>
+        <div class="site-info" id="siteInfo">
+            <div class="site-info-row">
+                <span class="site-info-label">Lot:</span>
+                <span class="site-info-value" id="lotDisplay">Not Selected</span>
+            </div>
+            <div class="site-info-row">
+                <span class="site-info-label">DP:</span>
+                <span class="site-info-value" id="dpDisplay">-</span>
+            </div>
+            <div class="site-info-row">
+                <span class="site-info-label">Site Area:</span>
+                <span class="site-info-value" id="areaDisplay">- m²</span>
+            </div>
+            <div class="site-info-row">
+                <span class="site-info-label">Dimensions:</span>
+                <span class="site-info-value" id="dimensionsDisplay">-</span>
+            </div>
+        </div>
+
+        <div class="manual-entry-section">
+            <h6>Manual Site Entry</h6>
+            <div class="info-text mb-2">
+                Enter site dimensions manually or load from map selection
+            </div>
+
+            <div class="form-group">
+                <label>Site Area (m²)</label>
+                <input type="number" class="form-control form-control-sm" id="manualArea"
+                       placeholder="Enter site area" step="1" min="100">
+            </div>
+
+            <div class="form-group">
+                <label>Site Width (m)</label>
+                <input type="number" class="form-control form-control-sm" id="manualWidth"
+                       placeholder="Enter width" step="0.1" min="5">
+            </div>
+
+            <div class="form-group">
+                <label>Site Depth (m)</label>
+                <input type="number" class="form-control form-control-sm" id="manualDepth"
+                       placeholder="Enter depth" step="0.1" min="5">
+            </div>
+
+            <div class="info-text mb-2">
+                💡 Tip: Enter width and depth to auto-calculate area
+            </div>
+
+            <div class="form-group mb-0">
+                <button class="btn btn-outline-secondary btn-sm w-100 mb-2" id="loadCurrentSiteBtn">
+                    Load Current Site Data
+                </button>
+                <button class="btn btn-secondary btn-sm w-100" id="applySiteBtn">
+                    Apply Manual Site Data
+                </button>
+            </div>
+        </div>
+
+        <h6>Building Parameters</h6>
+
+        <div class="form-group">
+            <label>
+                FSR Target
+                <span class="value-display" id="fsrValue">1.5:1</span>
+            </label>
+            <input type="range" class="form-range" id="fsrSlider" min="0.5" max="5.0" step="0.1" value="1.5">
+            <div class="info-text">Floor Space Ratio</div>
+        </div>
+
+        <div class="form-group">
+            <label>
+                Height Limit
+                <span class="value-display" id="heightValue">25m</span>
+            </label>
+            <input type="range" class="form-range" id="heightSlider" min="5" max="50" step="1" value="25">
+            <div class="info-text">Maximum building height</div>
+        </div>
+
+        <div class="form-group">
+            <label>Floor Height</label>
+            <input type="number" class="form-control form-control-sm" id="floorHeight" value="3.5" step="0.1" min="2.5" max="5.0">
+            <div class="info-text">Calculated Floors: <strong id="floorsDisplay">7</strong></div>
+        </div>
+
+        <div class="form-group">
+            <label>
+                Front Setback
+                <span class="value-display" id="frontSetbackValue">3m</span>
+            </label>
+            <input type="range" class="form-range" id="frontSetback" min="0" max="10" step="0.5" value="3">
+        </div>
+
+        <div class="form-group">
+            <label>
+                Side Setback
+                <span class="value-display" id="sideSetbackValue">1.5m</span>
+            </label>
+            <input type="range" class="form-range" id="sideSetback" min="0" max="10" step="0.5" value="1.5">
+        </div>
+
+        <div class="form-group">
+            <label>
+                Rear Setback
+                <span class="value-display" id="rearSetbackValue">3m</span>
+            </label>
+            <input type="range" class="form-range" id="rearSetback" min="0" max="10" step="0.5" value="3">
+        </div>
+
+        <div class="form-group">
+            <label>
+                Site Coverage
+                <span class="value-display" id="coverageValue">60%</span>
+            </label>
+            <input type="range" class="form-range" id="coverageSlider" min="30" max="80" step="5" value="60">
+            <div class="info-text">Percentage of site covered</div>
+        </div>
+
+        <h6 class="mt-4">Building Form</h6>
+
+        <div class="form-group">
+            <label>Building Type</label>
+            <select class="form-select form-select-sm" id="buildingType">
+                <option value="tower">Tower Only</option>
+                <option value="podium">Podium + Tower</option>
+                <option value="podium_only">Podium Only</option>
+            </select>
+        </div>
+
+        <div id="podiumControls" style="display: none;">
+            <div class="form-group">
+                <label>
+                    Podium Floors
+                    <span class="value-display" id="podiumFloorsValue">2</span>
+                </label>
+                <input type="range" class="form-range" id="podiumFloors" min="1" max="6" step="1" value="2">
+                <div class="info-text">Ground + additional floors</div>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    Tower Setback
+                    <span class="value-display" id="towerSetbackValue">3m</span>
+                </label>
+                <input type="range" class="form-range" id="towerSetback" min="0" max="10" step="0.5" value="3">
+                <div class="info-text">Setback from podium edge</div>
+            </div>
+        </div>
+
+        <h6 class="mt-4">Efficiency Assumptions</h6>
+
+        <div class="form-group">
+            <label>
+                Core/Circulation
+                <span class="value-display" id="circulationValue">15%</span>
+            </label>
+            <input type="range" class="form-range" id="circulationSlider" min="10" max="25" step="1" value="15">
+            <div class="info-text">Lifts, stairs, corridors</div>
+        </div>
+
+        <div class="form-group">
+            <label>
+                Wall Thickness
+                <span class="value-display" id="wallThicknessValue">7%</span>
+            </label>
+            <input type="range" class="form-range" id="wallThicknessSlider" min="5" max="10" step="1" value="7">
+            <div class="info-text">External & internal walls</div>
+        </div>
+
+        <h6 class="mt-4">Land Use Mix</h6>
+
+        <div class="form-group">
+            <label>
+                Residential
+                <span class="value-display" id="residentialValue">60%</span>
+            </label>
+            <input type="range" class="form-range" id="residentialSlider" min="0" max="100" step="5" value="60">
+        </div>
+
+        <div class="form-group">
+            <label>
+                Commercial
+                <span class="value-display" id="commercialValue">30%</span>
+            </label>
+            <input type="range" class="form-range" id="commercialSlider" min="0" max="100" step="5" value="30">
+        </div>
+
+        <div class="form-group">
+            <label>
+                Retail
+                <span class="value-display" id="retailValue">10%</span>
+            </label>
+            <input type="range" class="form-range" id="retailSlider" min="0" max="100" step="5" value="10">
+        </div>
+
+        <div class="info-text mb-3" id="landUseTotalDisplay" style="text-align: center; font-weight: 600; color: var(--primary-color);">
+            Total: 100%
+        </div>
+
+        <h6 class="mt-4">Residential Unit Mix</h6>
+
+        <div class="form-group">
+            <label>
+                Studio
+                <span class="value-display" id="studioValue">10%</span>
+            </label>
+            <input type="range" class="form-range" id="studioSlider" min="0" max="100" step="5" value="10">
+            <div class="info-text">Avg: 35-45m² NSA</div>
+        </div>
+
+        <div class="form-group">
+            <label>
+                1 Bedroom
+                <span class="value-display" id="oneBrValue">40%</span>
+            </label>
+            <input type="range" class="form-range" id="oneBrSlider" min="0" max="100" step="5" value="40">
+            <div class="info-text">Avg: 50-65m² NSA</div>
+        </div>
+
+        <div class="form-group">
+            <label>
+                2 Bedroom
+                <span class="value-display" id="twoBrValue">40%</span>
+            </label>
+            <input type="range" class="form-range" id="twoBrSlider" min="0" max="100" step="5" value="40">
+            <div class="info-text">Avg: 70-90m² NSA</div>
+        </div>
+
+        <div class="form-group">
+            <label>
+                3 Bedroom
+                <span class="value-display" id="threeBrValue">10%</span>
+            </label>
+            <input type="range" class="form-range" id="threeBrSlider" min="0" max="100" step="5" value="10">
+            <div class="info-text">Avg: 95-120m² NSA</div>
+        </div>
+
+        <div class="info-text mb-3" id="unitMixTotalDisplay" style="text-align: center; font-weight: 600; color: var(--primary-color);">
+            Total: 100%
+        </div>
+
+        <div class="form-group">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="includeStudy" checked>
+                <label class="form-check-label" for="includeStudy">
+                    Include Study Room (8-12m²)
+                </label>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <button class="btn btn-primary w-100 mb-2" id="generateBtn">
+                Generate Options
+            </button>
+            <button class="btn btn-outline-secondary w-100 mb-2" id="resetBtn">
+                Reset Parameters
+            </button>
+            <button class="btn btn-outline-primary w-100 mb-2" id="autoApplyBtn">
+                Auto-Apply Planning Controls
+            </button>
+            <button class="btn btn-success w-100" id="loadToCashflowBtn" onclick="loadToCashflow()" title="Load selected building to Cashflow">
+                📊 Load to Cashflow
+            </button>
+        </div>
+    </div>
+
+    <!-- Center - 3D Viewer -->
+    <div class="viewer-panel">
+        <div class="viewer-controls">
+            <h6>3D Controls</h6>
+            <p><strong>Rotate:</strong> Left-click + drag</p>
+            <p><strong>Pan:</strong> Right-click + drag</p>
+            <p><strong>Zoom:</strong> Mouse wheel</p>
+        </div>
+        <div style="position: absolute; bottom: 15px; left: 15px; background: rgba(255,255,255,0.95); padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-size: 0.8rem; z-index: 10; display: none;" id="unitLegend">
+            <h6 style="margin: 0 0 10px 0; font-size: 0.9rem; font-weight: 600; color: var(--primary-color);">Unit Mix</h6>
+            <div id="unitLegendContent"></div>
+        </div>
+        <canvas id="canvas3d"></canvas>
+    </div>
+
+    <!-- Right Panel - Generated Options -->
+    <div class="options-panel">
+        <h6>Generated Building Forms</h6>
+
+        <div class="loading-indicator" id="loadingIndicator">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Generating...</span>
+            </div>
+            <p class="mt-2 mb-0 text-muted">Generating building forms...</p>
+        </div>
+
+        <div id="optionsContainer">
+            <div class="no-options">
+                <p>Click "Generate Options" to create building form options based on your parameters.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Compliance Floating Window -->
+<div class="compliance-window" id="complianceWindow">
+    <div class="compliance-header" id="complianceHeader">
+        <h6 id="complianceTitle">Compliance Report</h6>
+        <div class="compliance-header-controls">
+            <button class="compliance-btn-control" onclick="toggleMinimizeCompliance()" title="Minimize">_</button>
+            <button class="compliance-btn-control" onclick="closeComplianceWindow()" title="Close">&times;</button>
+        </div>
+    </div>
+    <div class="compliance-body">
+        <div class="compliance-tabs">
+            <button class="compliance-tab active" onclick="switchComplianceTab('metrics')">Metrics</button>
+            <button class="compliance-tab" onclick="switchComplianceTab('controls')">Planning</button>
+        </div>
+
+        <!-- Metrics Tab -->
+        <div class="compliance-tab-content active" id="tab-metrics">
+            <!-- Dynamically populated -->
+        </div>
+
+        <!-- Planning Controls Tab -->
+        <div class="compliance-tab-content" id="tab-controls">
+            <!-- Dynamically populated -->
+        </div>
+    </div>
+</div>
+
+<!-- ADG Standards Popup - Small Collapsible -->
+<div class="adg-popup" id="adgPopup">
+    <div class="adg-popup-header" onclick="toggleAdgPopup()">
+        <h6>
+            ADG Standards
+            <span class="adg-status-badge" id="adgStatusBadge">-</span>
+        </h6>
+        <div class="adg-popup-header-controls">
+            <button class="adg-popup-btn" onclick="event.stopPropagation(); toggleAdgPopup()" title="Collapse/Expand">
+                <span id="adgCollapseIcon">▼</span>
+            </button>
+            <button class="adg-popup-btn" onclick="event.stopPropagation(); closeAdgPopup()" title="Close">&times;</button>
+        </div>
+    </div>
+    <div class="adg-popup-body" id="adgPopupBody">
+        <!-- Summary -->
+        <div class="adg-popup-summary" id="adgSummary">
+            <div class="adg-popup-summary-item">
+                <div class="adg-popup-summary-value pass" id="adgPassCount">0</div>
+                <div class="adg-popup-summary-label">Pass</div>
+            </div>
+            <div class="adg-popup-summary-item">
+                <div class="adg-popup-summary-value partial" id="adgPartialCount">0</div>
+                <div class="adg-popup-summary-label">Partial</div>
+            </div>
+            <div class="adg-popup-summary-item">
+                <div class="adg-popup-summary-value fail" id="adgFailCount">0</div>
+                <div class="adg-popup-summary-label">Fail</div>
+            </div>
+        </div>
+        <!-- ADG Items -->
+        <div id="adgItemsContainer">
+            <p class="text-muted text-center" style="font-size: 0.8rem;">Select a building option to see ADG compliance</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Three.js Library with OrbitControls (ES Module) -->
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.150.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.150.0/examples/jsm/"
+    }
+}
+</script>
+<script type="module" id="main-script">
+
+// Import Three.js and OrbitControls
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ===== GLOBAL VARIABLES =====
+let scene, camera, renderer, controls;
+let lotBoundary, buildingMeshes = [];
+let generatedOptions = [];
+let selectedOption = null;
+
+// Site data (can be loaded from sessionStorage if coming from map)
+let siteData = {
+    lot: null,
+    dp: null,
+    area: 600,  // Default 600 m²
+    width: 20,  // Default 20m width
+    depth: 30,  // Default 30m depth
+    address: null,
+    zoning: null,
+    fsr_control: 1.5,
+    height_control: 25
+};
+
+// Building parameters
+let buildingParams = {
+    fsr: 1.5,
+    heightLimit: 25,
+    floorHeight: 3.5,
+    frontSetback: 3,
+    sideSetback: 1.5,
+    rearSetback: 3,
+    coverage: 60,
+    // Building form
+    buildingType: 'tower', // 'tower', 'podium', 'podium_only'
+    podiumFloors: 2,
+    towerSetback: 3,
+    // Efficiency assumptions
+    circulation: 15, // Core, lifts, stairs, corridors (%)
+    wallThickness: 7, // Wall thickness factor (%)
+    // Land use mix (percentages)
+    residential: 60,
+    commercial: 30,
+    retail: 10,
+    // Unit mix (percentages of residential area)
+    studio: 10,
+    oneBr: 40,
+    twoBr: 40,
+    threeBr: 10,
+    includeStudy: true
+};
+
+// Land use types with colors (SketchUp-style bright, distinct colors)
+const LAND_USES = {
+    residential: { name: 'Residential', color: 0x6699FF, displayColor: '#6699FF' },  // Bright blue
+    commercial: { name: 'Commercial', color: 0xFF6B6B, displayColor: '#FF6B6B' },   // Coral red
+    retail: { name: 'Retail', color: 0xFFD93D, displayColor: '#FFD93D' },           // Golden yellow
+    mixed: { name: 'Mixed Use', color: 0x6BCB77, displayColor: '#6BCB77' }          // Green
+};
+
+// Unit types with MORE DISTINCT colors for better visibility (SketchUp-style)
+// Using warm-to-cool spectrum for easy identification
+const UNIT_TYPES = {
+    studio: { name: 'Studio', color: 0xFFB84D, displayColor: '#FFB84D', avgSize: 40 },      // Warm orange
+    oneBr: { name: '1 Bedroom', color: 0x95E1D3, displayColor: '#95E1D3', avgSize: 58 },   // Turquoise
+    twoBr: { name: '2 Bedroom', color: 0xA390E4, displayColor: '#A390E4', avgSize: 80 },   // Purple
+    threeBr: { name: '3 Bedroom', color: 0xFF6B9D, displayColor: '#FF6B9D', avgSize: 108 }, // Pink
+    study: { name: 'Study', color: 0xFFF176, displayColor: '#FFF176' }                     // Light yellow
+};
+
+// ===== INITIALIZATION =====
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Building Generator page loaded');
+    console.log('THREE module imported successfully');
+    console.log('OrbitControls imported successfully');
+
+    try {
+        // Load site data from sessionStorage if available
+        loadSiteData();
+        console.log('Site data loaded:', siteData);
+
+        // Initialize 3D scene
+        init3DScene();
+        console.log('3D scene initialized successfully');
+
+        // Setup event listeners
+        setupEventListeners();
+        console.log('Event listeners setup complete');
+
+        // Update displays
+        updateAllDisplays();
+        updateLandUseTotal();
+        updateUnitMixTotal();
+        console.log('Displays updated');
+
+        // Start render loop
+        animate();
+        console.log('Animation started - Building Generator ready!');
+    } catch (error) {
+        console.error('Initialization error:', error);
+        alert('Error initializing Building Generator: ' + error.message);
+    }
+});
+
+/**
+ * Load site data from sessionStorage (passed from map page)
+ */
+function loadSiteData() {
+    const stored = sessionStorage.getItem('selectedLot');
+    if (stored) {
+        try {
+            const data = JSON.parse(stored);
+            siteData.lot = data.lot || null;
+            siteData.dp = data.dp || null;
+            siteData.area = parseFloat(data.area) || 600;
+            siteData.address = data.address || null;
+
+            // Estimate dimensions (assume rectangular lot with 2:3 ratio)
+            const ratio = 2/3;
+            siteData.width = Math.sqrt(siteData.area * ratio);
+            siteData.depth = siteData.area / siteData.width;
+
+            // Override with actual dimensions if available
+            if (data.width) siteData.width = parseFloat(data.width);
+            if (data.depth) siteData.depth = parseFloat(data.depth);
+
+        } catch (e) {
+            console.error('Error loading site data:', e);
+        }
+    }
+}
+
+/**
+ * Initialize Three.js 3D scene
+ */
+function init3DScene() {
+    const container = document.getElementById('canvas3d');
+
+    // Scene setup (SketchUp-style)
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xe6f2ff); // Light blue sky like SketchUp
+
+    // Camera setup
+    const aspect = container.clientWidth / container.clientHeight;
+    camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+    camera.position.set(40, 40, 40);
+    camera.lookAt(0, 0, 0);
+
+    // Renderer setup
+    renderer = new THREE.WebGLRenderer({ canvas: container, antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(50, 50, 25);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.camera.left = -50;
+    directionalLight.shadow.camera.right = 50;
+    directionalLight.shadow.camera.top = 50;
+    directionalLight.shadow.camera.bottom = -50;
+    scene.add(directionalLight);
+
+    // Grid ground plane
+    const gridHelper = new THREE.GridHelper(100, 50, 0x888888, 0xcccccc);
+    scene.add(gridHelper);
+
+    // Ground plane for shadows
+    const groundGeometry = new THREE.PlaneGeometry(100, 100);
+    const groundMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.8,
+        metalness: 0.2
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Orbit controls
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 10;
+    controls.maxDistance = 200;
+    controls.maxPolarAngle = Math.PI / 2;
+    controls.mouseButtons = {
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.PAN
+    };
+
+    // Create lot boundary
+    createLotBoundary();
+
+    // Handle window resize
+    window.addEventListener('resize', onWindowResize);
+}
+
+/**
+ * Create the lot boundary visualization
+ */
+function createLotBoundary() {
+    // Remove existing lot boundary if any
+    if (lotBoundary) {
+        scene.remove(lotBoundary);
+    }
+
+    // Create rectangular lot boundary
+    const width = siteData.width;
+    const depth = siteData.depth;
+
+    // Lot outline (just edges, no fill)
+    const shape = new THREE.Shape();
+    shape.moveTo(-width/2, -depth/2);
+    shape.lineTo(width/2, -depth/2);
+    shape.lineTo(width/2, depth/2);
+    shape.lineTo(-width/2, depth/2);
+    shape.lineTo(-width/2, -depth/2);
+
+    const lotGeometry = new THREE.ShapeGeometry(shape);
+    const lotMaterial = new THREE.MeshBasicMaterial({
+        color: 0x888888,
+        transparent: true,
+        opacity: 0.2,
+        side: THREE.DoubleSide
+    });
+
+    const lotMesh = new THREE.Mesh(lotGeometry, lotMaterial);
+    lotMesh.rotation.x = -Math.PI / 2;
+    lotMesh.position.y = 0.01;
+
+    // Add edges for better visibility
+    const edges = new THREE.EdgesGeometry(lotGeometry);
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+    const line = new THREE.LineSegments(edges, lineMaterial);
+    line.rotation.x = -Math.PI / 2;
+    line.position.y = 0.02;
+
+    lotBoundary = new THREE.Group();
+    lotBoundary.add(lotMesh);
+    lotBoundary.add(line);
+
+    scene.add(lotBoundary);
+}
+
+/**
+ * Setup event listeners for controls
+ */
+function setupEventListeners() {
+    // Parameter sliders with LIVE UPDATE
+    document.getElementById('fsrSlider').addEventListener('input', function() {
+        buildingParams.fsr = parseFloat(this.value);
+        document.getElementById('fsrValue').textContent = buildingParams.fsr.toFixed(1) + ':1';
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('heightSlider').addEventListener('input', function() {
+        buildingParams.heightLimit = parseFloat(this.value);
+        document.getElementById('heightValue').textContent = buildingParams.heightLimit + 'm';
+        updateFloorsDisplay();
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('floorHeight').addEventListener('input', function() {
+        buildingParams.floorHeight = parseFloat(this.value);
+        updateFloorsDisplay();
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('frontSetback').addEventListener('input', function() {
+        buildingParams.frontSetback = parseFloat(this.value);
+        document.getElementById('frontSetbackValue').textContent = buildingParams.frontSetback + 'm';
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('sideSetback').addEventListener('input', function() {
+        buildingParams.sideSetback = parseFloat(this.value);
+        document.getElementById('sideSetbackValue').textContent = buildingParams.sideSetback + 'm';
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('rearSetback').addEventListener('input', function() {
+        buildingParams.rearSetback = parseFloat(this.value);
+        document.getElementById('rearSetbackValue').textContent = buildingParams.rearSetback + 'm';
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('coverageSlider').addEventListener('input', function() {
+        buildingParams.coverage = parseFloat(this.value);
+        document.getElementById('coverageValue').textContent = buildingParams.coverage + '%';
+        liveUpdateBuilding();
+    });
+
+    // Building form controls
+    document.getElementById('buildingType').addEventListener('change', function() {
+        buildingParams.buildingType = this.value;
+        const podiumControls = document.getElementById('podiumControls');
+        if (this.value === 'podium') {
+            podiumControls.style.display = 'block';
+        } else {
+            podiumControls.style.display = 'none';
+        }
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('podiumFloors').addEventListener('input', function() {
+        buildingParams.podiumFloors = parseInt(this.value);
+        document.getElementById('podiumFloorsValue').textContent = buildingParams.podiumFloors;
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('towerSetback').addEventListener('input', function() {
+        buildingParams.towerSetback = parseFloat(this.value);
+        document.getElementById('towerSetbackValue').textContent = buildingParams.towerSetback + 'm';
+        liveUpdateBuilding();
+    });
+
+    // Efficiency controls
+    document.getElementById('circulationSlider').addEventListener('input', function() {
+        buildingParams.circulation = parseFloat(this.value);
+        document.getElementById('circulationValue').textContent = buildingParams.circulation + '%';
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('wallThicknessSlider').addEventListener('input', function() {
+        buildingParams.wallThickness = parseFloat(this.value);
+        document.getElementById('wallThicknessValue').textContent = buildingParams.wallThickness + '%';
+        liveUpdateBuilding();
+    });
+
+    // Land use sliders with auto-normalization
+    document.getElementById('residentialSlider').addEventListener('input', function() {
+        buildingParams.residential = parseFloat(this.value);
+        document.getElementById('residentialValue').textContent = buildingParams.residential + '%';
+        updateLandUseTotal();
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('commercialSlider').addEventListener('input', function() {
+        buildingParams.commercial = parseFloat(this.value);
+        document.getElementById('commercialValue').textContent = buildingParams.commercial + '%';
+        updateLandUseTotal();
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('retailSlider').addEventListener('input', function() {
+        buildingParams.retail = parseFloat(this.value);
+        document.getElementById('retailValue').textContent = buildingParams.retail + '%';
+        updateLandUseTotal();
+        liveUpdateBuilding();
+    });
+
+    // Unit mix sliders
+    document.getElementById('studioSlider').addEventListener('input', function() {
+        buildingParams.studio = parseFloat(this.value);
+        document.getElementById('studioValue').textContent = buildingParams.studio + '%';
+        updateUnitMixTotal();
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('oneBrSlider').addEventListener('input', function() {
+        buildingParams.oneBr = parseFloat(this.value);
+        document.getElementById('oneBrValue').textContent = buildingParams.oneBr + '%';
+        updateUnitMixTotal();
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('twoBrSlider').addEventListener('input', function() {
+        buildingParams.twoBr = parseFloat(this.value);
+        document.getElementById('twoBrValue').textContent = buildingParams.twoBr + '%';
+        updateUnitMixTotal();
+        liveUpdateBuilding();
+    });
+
+    document.getElementById('threeBrSlider').addEventListener('input', function() {
+        buildingParams.threeBr = parseFloat(this.value);
+        document.getElementById('threeBrValue').textContent = buildingParams.threeBr + '%';
+        updateUnitMixTotal();
+        liveUpdateBuilding();
+    });
+
+    // Study checkbox
+    document.getElementById('includeStudy').addEventListener('change', function() {
+        buildingParams.includeStudy = this.checked;
+    });
+
+    // Buttons
+    document.getElementById('generateBtn').addEventListener('click', generateBuildingOptions);
+    document.getElementById('resetBtn').addEventListener('click', resetParameters);
+    document.getElementById('autoApplyBtn').addEventListener('click', autoApplyPlanningControls);
+    document.getElementById('applySiteBtn').addEventListener('click', applyManualSiteData);
+    document.getElementById('loadCurrentSiteBtn').addEventListener('click', loadCurrentSiteToForm);
+
+    // Auto-calculate area when width/depth change
+    document.getElementById('manualWidth').addEventListener('input', updateCalculatedArea);
+    document.getElementById('manualDepth').addEventListener('input', updateCalculatedArea);
+}
+
+/**
+ * Load current site data into the manual entry form
+ */
+function loadCurrentSiteToForm() {
+    document.getElementById('manualArea').value = Math.round(siteData.area);
+    document.getElementById('manualWidth').value = siteData.width.toFixed(1);
+    document.getElementById('manualDepth').value = siteData.depth.toFixed(1);
+}
+
+/**
+ * Auto-calculate area when width and depth are entered
+ */
+function updateCalculatedArea() {
+    const width = parseFloat(document.getElementById('manualWidth').value);
+    const depth = parseFloat(document.getElementById('manualDepth').value);
+
+    if (width > 0 && depth > 0) {
+        const calculatedArea = width * depth;
+        document.getElementById('manualArea').value = Math.round(calculatedArea);
+    }
+}
+
+/**
+ * Apply manually entered site data
+ */
+function applyManualSiteData() {
+    const area = parseFloat(document.getElementById('manualArea').value);
+    const width = parseFloat(document.getElementById('manualWidth').value);
+    const depth = parseFloat(document.getElementById('manualDepth').value);
+
+    // Validation
+    if (!area || area < 100) {
+        alert('Please enter a valid site area (minimum 100 m²)');
+        return;
+    }
+
+    if (!width || width < 5) {
+        alert('Please enter a valid site width (minimum 5m)');
+        return;
+    }
+
+    if (!depth || depth < 5) {
+        alert('Please enter a valid site depth (minimum 5m)');
+        return;
+    }
+
+    // Check if dimensions match area (within 5% tolerance)
+    const calculatedArea = width * depth;
+    const tolerance = 0.05;
+    const areaDifference = Math.abs(calculatedArea - area) / area;
+
+    if (areaDifference > tolerance) {
+        const proceed = confirm(
+            `Warning: Width × Depth (${calculatedArea.toFixed(0)} m²) doesn't match the entered area (${area} m²).\n\n` +
+            `Difference: ${(areaDifference * 100).toFixed(1)}%\n\n` +
+            `Do you want to use the calculated area (${calculatedArea.toFixed(0)} m²) instead?`
+        );
+
+        if (proceed) {
+            // Use calculated area from dimensions
+            siteData.area = calculatedArea;
+        } else {
+            return;
+        }
+    } else {
+        siteData.area = area;
+    }
+
+    // Update site data
+    siteData.width = width;
+    siteData.depth = depth;
+    siteData.lot = 'Manual Entry';
+    siteData.dp = '-';
+
+    // Update displays
+    updateAllDisplays();
+
+    // Recreate lot boundary with new dimensions
+    createLotBoundary();
+
+    // Show success message
+    alert(`Site data applied successfully!\n\nArea: ${siteData.area.toFixed(0)} m²\nDimensions: ${width}m × ${depth}m`);
+
+    // Clear any existing building options since site changed
+    if (generatedOptions.length > 0) {
+        const regenerate = confirm('Site dimensions have changed. Would you like to regenerate building options?');
+        if (regenerate) {
+            generateBuildingOptions();
+        }
+    }
+}
+
+/**
+ * Update land use total display
+ */
+function updateLandUseTotal() {
+    const total = buildingParams.residential + buildingParams.commercial + buildingParams.retail;
+    const display = document.getElementById('landUseTotalDisplay');
+    display.textContent = `Total: ${total}%`;
+
+    // Visual feedback for valid/invalid totals
+    if (total === 100) {
+        display.style.color = 'var(--primary-color)';
+    } else if (total < 100) {
+        display.style.color = '#FFA500'; // Orange for under 100%
+    } else {
+        display.style.color = '#EA4335'; // Red for over 100%
+    }
+}
+
+/**
+ * Update unit mix total display
+ */
+function updateUnitMixTotal() {
+    const total = buildingParams.studio + buildingParams.oneBr + buildingParams.twoBr + buildingParams.threeBr;
+    const display = document.getElementById('unitMixTotalDisplay');
+    display.textContent = `Total: ${total}%`;
+
+    // Visual feedback for valid/invalid totals
+    if (total === 100) {
+        display.style.color = 'var(--primary-color)';
+    } else if (total < 100) {
+        display.style.color = '#FFA500'; // Orange for under 100%
+    } else {
+        display.style.color = '#EA4335'; // Red for over 100%
+    }
+}
+
+// Debounce timer for live updates
+let liveUpdateTimeout = null;
+
+/**
+ * Live update the selected building when parameters change
+ * Uses debouncing to prevent excessive regeneration
+ */
+function liveUpdateBuilding() {
+    // Only update if there's a selected option
+    if (selectedOption === null || generatedOptions.length === 0) {
+        return;
+    }
+
+    // Clear existing timeout
+    if (liveUpdateTimeout) {
+        clearTimeout(liveUpdateTimeout);
+    }
+
+    // Debounce: wait 300ms after last change before updating
+    liveUpdateTimeout = setTimeout(() => {
+        // Regenerate the selected option with new parameters
+        const buildableWidth = siteData.width - (2 * buildingParams.sideSetback);
+        const buildableDepth = siteData.depth - buildingParams.frontSetback - buildingParams.rearSetback;
+        const targetGFA = siteData.area * buildingParams.fsr;
+
+        // Regenerate based on which option was selected
+        let updatedOption;
+        switch(selectedOption) {
+            case 0:
+                updatedOption = generateOption1_SingleTower(buildableWidth, buildableDepth, targetGFA);
+                break;
+            case 1:
+                updatedOption = generateOption2_SteppedForm(buildableWidth, buildableDepth, targetGFA);
+                break;
+            case 2:
+                updatedOption = generateOption3_CourtyardForm(buildableWidth, buildableDepth, targetGFA);
+                break;
+            case 3:
+                updatedOption = generateOption4_LShapedForm(buildableWidth, buildableDepth, targetGFA);
+                break;
+            case 4:
+                updatedOption = generateOption5_SplitTowers(buildableWidth, buildableDepth, targetGFA);
+                break;
+        }
+
+        // Update the option in the array
+        generatedOptions[selectedOption] = updatedOption;
+
+        // Re-visualize the updated building
+        clearBuildingMeshes();
+        visualizeBuilding(updatedOption);
+        updateUnitLegend(updatedOption);
+
+        // Update the option card display
+        displayGeneratedOptions();
+
+        // Re-select the option to maintain selection state
+        document.querySelectorAll('.option-card')[selectedOption].classList.add('selected');
+    }, 300);
+}
+
+/**
+ * Update all display values
+ */
+function updateAllDisplays() {
+    // Site info
+    document.getElementById('lotDisplay').textContent = siteData.lot || 'Not Selected';
+    document.getElementById('dpDisplay').textContent = siteData.dp || '-';
+    document.getElementById('areaDisplay').textContent = siteData.area.toFixed(0) + ' m²';
+    document.getElementById('dimensionsDisplay').textContent =
+        siteData.width.toFixed(1) + 'm × ' + siteData.depth.toFixed(1) + 'm';
+
+    // Parameters
+    document.getElementById('fsrValue').textContent = buildingParams.fsr.toFixed(1) + ':1';
+    document.getElementById('heightValue').textContent = buildingParams.heightLimit + 'm';
+    document.getElementById('frontSetbackValue').textContent = buildingParams.frontSetback + 'm';
+    document.getElementById('sideSetbackValue').textContent = buildingParams.sideSetback + 'm';
+    document.getElementById('rearSetbackValue').textContent = buildingParams.rearSetback + 'm';
+    document.getElementById('coverageValue').textContent = buildingParams.coverage + '%';
+
+    updateFloorsDisplay();
+}
+
+/**
+ * Update calculated floors display
+ */
+function updateFloorsDisplay() {
+    const floors = Math.floor(buildingParams.heightLimit / buildingParams.floorHeight);
+    document.getElementById('floorsDisplay').textContent = floors;
+}
+
+/**
+ * Reset parameters to defaults
+ */
+function resetParameters() {
+    buildingParams = {
+        fsr: 1.5,
+        heightLimit: 25,
+        floorHeight: 3.5,
+        frontSetback: 3,
+        sideSetback: 1.5,
+        rearSetback: 3,
+        coverage: 60,
+        residential: 60,
+        commercial: 30,
+        retail: 10
+    };
+
+    // Reset slider values
+    document.getElementById('fsrSlider').value = 1.5;
+    document.getElementById('heightSlider').value = 25;
+    document.getElementById('floorHeight').value = 3.5;
+    document.getElementById('frontSetback').value = 3;
+    document.getElementById('sideSetback').value = 1.5;
+    document.getElementById('rearSetback').value = 3;
+    document.getElementById('coverageSlider').value = 60;
+    document.getElementById('residentialSlider').value = 60;
+    document.getElementById('commercialSlider').value = 30;
+    document.getElementById('retailSlider').value = 10;
+
+    updateAllDisplays();
+    updateLandUseTotal();
+}
+
+/**
+ * Auto-apply planning controls from site data
+ * This simulates loading planning controls from NSW Planning Portal
+ */
+function autoApplyPlanningControls() {
+    if (!siteData.lot || !siteData.dp) {
+        alert('Please select a site from the map first.');
+        return;
+    }
+
+    // Show loading state
+    const btn = document.getElementById('autoApplyBtn');
+    const originalText = btn.textContent;
+    btn.textContent = 'Loading Controls...';
+    btn.disabled = true;
+
+    // Simulate API call to planning portal
+    setTimeout(() => {
+        // In production, this would call NSW Planning Portal API
+        // For now, use site data if available, otherwise use typical controls based on zoning
+
+        // Apply FSR control
+        if (siteData.fsr_control) {
+            buildingParams.fsr = siteData.fsr_control;
+            document.getElementById('fsrSlider').value = siteData.fsr_control;
+        }
+
+        // Apply height control
+        if (siteData.height_control) {
+            buildingParams.heightLimit = siteData.height_control;
+            document.getElementById('heightSlider').value = siteData.height_control;
+        }
+
+        // Apply typical setbacks based on zoning
+        // This would come from LEP/DCP in production
+        const zoning = siteData.zoning || 'R2';
+        if (zoning.startsWith('R')) {
+            // Residential zones - typical setbacks
+            buildingParams.frontSetback = 6;
+            buildingParams.sideSetback = 0.9;
+            buildingParams.rearSetback = 6;
+            buildingParams.coverage = 55;
+            document.getElementById('frontSetback').value = 6;
+            document.getElementById('sideSetback').value = 0.9;
+            document.getElementById('rearSetback').value = 6;
+            document.getElementById('coverageSlider').value = 55;
+        } else if (zoning.startsWith('B')) {
+            // Business zones - less restrictive
+            buildingParams.frontSetback = 0;
+            buildingParams.sideSetback = 0;
+            buildingParams.rearSetback = 3;
+            buildingParams.coverage = 75;
+            document.getElementById('frontSetback').value = 0;
+            document.getElementById('sideSetback').value = 0;
+            document.getElementById('rearSetback').value = 3;
+            document.getElementById('coverageSlider').value = 75;
+        }
+
+        updateAllDisplays();
+
+        // Reset button
+        btn.textContent = originalText;
+        btn.disabled = false;
+
+        // Show success message
+        alert(`Planning controls applied!\n\nFSR: ${buildingParams.fsr}:1\nHeight Limit: ${buildingParams.heightLimit}m\nZoning: ${zoning}`);
+    }, 1000);
+}
+
+/**
+ * BUILDING FORM GENERATION LOGIC
+ * Generates 5 different building massing options based on parameters
+ */
+function generateBuildingOptions() {
+    console.log('Generate button clicked!');
+    console.log('Current building params:', buildingParams);
+    console.log('Site data:', siteData);
+
+    try {
+        // Show loading indicator
+        document.getElementById('loadingIndicator').classList.add('active');
+        document.getElementById('optionsContainer').innerHTML = '';
+
+        // Clear existing building meshes
+        clearBuildingMeshes();
+
+        // Simulate generation delay for better UX
+        setTimeout(() => {
+            generatedOptions = [];
+            console.log('Starting generation...');
+
+        // Calculate buildable area after setbacks
+        const buildableWidth = siteData.width - (2 * buildingParams.sideSetback);
+        const buildableDepth = siteData.depth - buildingParams.frontSetback - buildingParams.rearSetback;
+        const buildableArea = buildableWidth * buildableDepth;
+
+        // Target GFA from FSR
+        const targetGFA = siteData.area * buildingParams.fsr;
+
+        // Generate 5 different options
+        generatedOptions.push(generateOption1_SingleTower(buildableWidth, buildableDepth, targetGFA));
+        generatedOptions.push(generateOption2_SteppedForm(buildableWidth, buildableDepth, targetGFA));
+        generatedOptions.push(generateOption3_CourtyardForm(buildableWidth, buildableDepth, targetGFA));
+        generatedOptions.push(generateOption4_LShapedForm(buildableWidth, buildableDepth, targetGFA));
+        generatedOptions.push(generateOption5_SplitTowers(buildableWidth, buildableDepth, targetGFA));
+
+            console.log('Generated', generatedOptions.length, 'options');
+
+            // Display options in UI
+            displayGeneratedOptions();
+
+            // Hide loading indicator
+            document.getElementById('loadingIndicator').classList.remove('active');
+
+            // Auto-select first option
+            if (generatedOptions.length > 0) {
+                selectOption(0);
+            }
+        }, 800);
+    } catch (error) {
+        console.error('Error generating building options:', error);
+        alert('Error generating options: ' + error.message);
+        document.getElementById('loadingIndicator').classList.remove('active');
+    }
+}
+
+/**
+ * Calculate building metrics (Archistar-style)
+ * GBA = Gross Building Area (total floor plate area)
+ * Circulation = Cores, lifts, stairs, corridors
+ * NSA = Net Sellable/Leasable Area (GBA - Circulation - Walls)
+ * GFA = Gross Floor Area (used for FSR calc - excludes some areas)
+ * Efficiency = NSA / GBA
+ */
+function calculateBuildingMetrics(volumes) {
+    let totalGBA = 0; // Gross Building Area (all floors)
+    let totalFloorPlateArea = 0;
+
+    volumes.forEach(v => {
+        const floorPlate = v.width * v.depth;
+        const volumeGBA = floorPlate * v.floors;
+        totalGBA += volumeGBA;
+        totalFloorPlateArea += floorPlate;
+    });
+
+    // Calculate circulation area (cores, lifts, stairs, corridors)
+    const circulationArea = totalGBA * (buildingParams.circulation / 100);
+
+    // Calculate wall thickness deduction
+    const wallDeduction = totalGBA * (buildingParams.wallThickness / 100);
+
+    // Net Sellable/Leasable Area
+    const NSA = totalGBA - circulationArea - wallDeduction;
+
+    // GFA is typically slightly less than GBA (excludes plant rooms, etc.)
+    // For simplicity, we'll use 95% of GBA
+    const GFA = totalGBA * 0.95;
+
+    // Efficiency ratio
+    const efficiency = (NSA / totalGBA) * 100;
+
+    // Open space calculation
+    const siteArea = siteData.area;
+    const buildingFootprint = totalFloorPlateArea;
+    const openSpace = siteArea - buildingFootprint;
+    const openSpacePercent = (openSpace / siteArea) * 100;
+
+    return {
+        GBA: totalGBA,
+        circulation: circulationArea,
+        walls: wallDeduction,
+        NSA: NSA,
+        GFA: GFA,
+        efficiency: efficiency,
+        openSpace: openSpace,
+        openSpacePercent: openSpacePercent,
+        buildingFootprint: buildingFootprint
+    };
+}
+
+/**
+ * Calculate land use allocation for a building option
+ */
+function calculateLandUseAllocation(totalGFA) {
+    // Normalize land use percentages to ensure they sum to 100%
+    const total = buildingParams.residential + buildingParams.commercial + buildingParams.retail;
+    const normalizedRes = (buildingParams.residential / total) * 100;
+    const normalizedCom = (buildingParams.commercial / total) * 100;
+    const normalizedRet = (buildingParams.retail / total) * 100;
+
+    return {
+        residential: {
+            percentage: normalizedRes,
+            gfa: (totalGFA * normalizedRes) / 100
+        },
+        commercial: {
+            percentage: normalizedCom,
+            gfa: (totalGFA * normalizedCom) / 100
+        },
+        retail: {
+            percentage: normalizedRet,
+            gfa: (totalGFA * normalizedRet) / 100
+        }
+    };
+}
+
+/**
+ * Assign land uses to building volumes (floors)
+ * Typical arrangement: Retail at ground, Commercial in middle, Residential on top
+ */
+function assignLandUsesToVolumes(volumes, landUses) {
+    let totalFloors = volumes.reduce((sum, v) => sum + v.floors, 0);
+    let floorPointer = 0;
+
+    volumes.forEach(volume => {
+        volume.landUses = [];
+        const volumeFloors = volume.floors;
+        const floorHeight = buildingParams.floorHeight;
+
+        // Calculate how many floors for each use in this volume
+        const retailFloors = Math.ceil((landUses.retail.percentage / 100) * volumeFloors);
+        const commercialFloors = Math.ceil((landUses.commercial.percentage / 100) * volumeFloors);
+        const residentialFloors = volumeFloors - retailFloors - commercialFloors;
+
+        // Assign from bottom to top: Retail -> Commercial -> Residential
+        let currentFloor = 0;
+
+        if (retailFloors > 0) {
+            volume.landUses.push({
+                type: 'retail',
+                startFloor: currentFloor,
+                endFloor: currentFloor + retailFloors,
+                color: LAND_USES.retail.color
+            });
+            currentFloor += retailFloors;
+        }
+
+        if (commercialFloors > 0) {
+            volume.landUses.push({
+                type: 'commercial',
+                startFloor: currentFloor,
+                endFloor: currentFloor + commercialFloors,
+                color: LAND_USES.commercial.color
+            });
+            currentFloor += commercialFloors;
+        }
+
+        if (residentialFloors > 0) {
+            volume.landUses.push({
+                type: 'residential',
+                startFloor: currentFloor,
+                endFloor: currentFloor + residentialFloors,
+                color: LAND_USES.residential.color
+            });
+        }
+    });
+}
+
+/**
+ * OPTION 1: Single Tower (Maximum Height) or Podium+Tower
+ * Respects building type selection
+ */
+function generateOption1_SingleTower(buildableWidth, buildableDepth, targetGFA) {
+    const maxFloors = Math.floor(buildingParams.heightLimit / buildingParams.floorHeight);
+    const volumes = [];
+
+    if (buildingParams.buildingType === 'podium' && buildingParams.podiumFloors > 0) {
+        // PODIUM + TOWER CONFIGURATION
+        const podiumFloors = Math.min(buildingParams.podiumFloors, maxFloors);
+        const towerFloors = maxFloors - podiumFloors;
+
+        // Podium uses full buildable area
+        const podiumWidth = buildableWidth * 0.9;
+        const podiumDepth = buildableDepth * 0.9;
+        const podiumHeight = podiumFloors * buildingParams.floorHeight;
+
+        volumes.push({
+            width: podiumWidth,
+            depth: podiumDepth,
+            height: podiumHeight,
+            x: 0,
+            z: 0,
+            floors: podiumFloors,
+            type: 'podium'
+        });
+
+        // Tower sits on podium with setback
+        if (towerFloors > 0) {
+            const towerWidth = podiumWidth - (2 * buildingParams.towerSetback);
+            const towerDepth = podiumDepth - (2 * buildingParams.towerSetback);
+            const towerHeight = towerFloors * buildingParams.floorHeight;
+
+            volumes.push({
+                width: towerWidth,
+                depth: towerDepth,
+                height: towerHeight,
+                x: 0,
+                z: 0,
+                floors: towerFloors,
+                baseHeight: podiumHeight, // Tower starts above podium
+                type: 'tower'
+            });
+        }
+    } else if (buildingParams.buildingType === 'podium_only') {
+        // PODIUM ONLY
+        const podiumFloors = Math.min(buildingParams.podiumFloors, 6);
+        const podiumHeight = podiumFloors * buildingParams.floorHeight;
+
+        volumes.push({
+            width: buildableWidth * 0.9,
+            depth: buildableDepth * 0.9,
+            height: podiumHeight,
+            x: 0,
+            z: 0,
+            floors: podiumFloors,
+            type: 'podium'
+        });
+    } else {
+        // TOWER ONLY (default)
+        const height = maxFloors * buildingParams.floorHeight;
+        const ratio = 0.75;
+        let footprintArea = targetGFA / maxFloors;
+        const maxCoverage = siteData.area * (buildingParams.coverage / 100);
+        footprintArea = Math.min(footprintArea, maxCoverage);
+
+        const width = Math.min(buildableWidth * 0.8, Math.sqrt(footprintArea / ratio));
+        const depth = Math.min(buildableDepth * 0.8, footprintArea / width);
+
+        volumes.push({
+            width: width,
+            depth: depth,
+            height: height,
+            x: 0,
+            z: 0,
+            floors: maxFloors,
+            type: 'tower'
+        });
+    }
+
+    // Calculate land use allocation
+    const totalGFA = volumes.reduce((sum, v) => sum + (v.width * v.depth * v.floors), 0);
+    const landUses = calculateLandUseAllocation(totalGFA);
+    assignLandUsesToVolumes(volumes, landUses);
+
+    // Calculate building metrics
+    const metrics = calculateBuildingMetrics(volumes);
+
+    return {
+        name: buildingParams.buildingType === 'podium' ? 'Tower on Podium' : buildingParams.buildingType === 'podium_only' ? 'Podium Only' : 'Single Tower',
+        description: buildingParams.buildingType === 'podium' ? 'Podium base with tower above' : buildingParams.buildingType === 'podium_only' ? 'Low-rise podium form' : 'Maximizes height with concentrated footprint',
+        volumes: volumes,
+        gfa: metrics.GFA,
+        fsr: metrics.GFA / siteData.area,
+        height: volumes.reduce((max, v) => Math.max(max, (v.baseHeight || 0) + v.height), 0),
+        floors: volumes.reduce((sum, v) => sum + v.floors, 0),
+        landUses: landUses,
+        metrics: metrics,
+        color: 0x4285F4
+    };
+}
+
+/**
+ * OPTION 2: Stepped/Terraced Form
+ * Multiple volumes at different heights creating stepped appearance
+ */
+function generateOption2_SteppedForm(buildableWidth, buildableDepth, targetGFA) {
+    const maxFloors = Math.floor(buildingParams.heightLimit / buildingParams.floorHeight);
+
+    // Create 3 stepped volumes
+    const volumes = [];
+    const numSteps = 3;
+
+    let totalGFA = 0;
+
+    for (let i = 0; i < numSteps; i++) {
+        const floorCount = Math.floor(maxFloors * (1 - i * 0.25));
+        const height = floorCount * buildingParams.floorHeight;
+
+        const widthFactor = 0.9 - (i * 0.2);
+        const depthFactor = 0.9 - (i * 0.15);
+
+        const width = buildableWidth * widthFactor;
+        const depth = buildableDepth * depthFactor;
+
+        // Position offset for stepped effect
+        const zOffset = (buildableDepth / 2) - (depth / 2) - (i * 2);
+
+        volumes.push({
+            width: width,
+            depth: depth,
+            height: height,
+            x: 0,
+            z: zOffset,
+            floors: floorCount
+        });
+
+        totalGFA += width * depth * floorCount;
+    }
+
+    const actualFSR = totalGFA / siteData.area;
+
+    // Calculate land use allocation
+    const landUses = calculateLandUseAllocation(totalGFA);
+    assignLandUsesToVolumes(volumes, landUses);
+
+    // Calculate building metrics
+    const metrics = calculateBuildingMetrics(volumes);
+
+    return {
+        name: 'Stepped Terraces',
+        description: 'Terraced form with outdoor spaces',
+        volumes: volumes,
+        gfa: metrics.GFA,
+        fsr: metrics.GFA / siteData.area,
+        height: volumes[0].height,
+        floors: volumes[0].floors,
+        landUses: landUses,
+        metrics: metrics,
+        color: 0xEA4335
+    };
+}
+
+/**
+ * OPTION 3: Courtyard Form
+ * U-shaped or courtyard design (if lot is big enough)
+ */
+function generateOption3_CourtyardForm(buildableWidth, buildableDepth, targetGFA) {
+    const maxFloors = Math.floor(buildingParams.heightLimit / buildingParams.floorHeight);
+    const height = maxFloors * buildingParams.floorHeight;
+
+    // Check if lot is big enough for courtyard
+    if (buildableWidth < 15 || buildableDepth < 15) {
+        // Fall back to L-shape if too small
+        return generateOption4_LShapedForm(buildableWidth, buildableDepth, targetGFA);
+    }
+
+    // Create U-shape with courtyard
+    const wingWidth = 6; // Width of each wing
+    const courtyardSize = Math.min(buildableWidth, buildableDepth) * 0.4;
+
+    const volumes = [];
+
+    // Front wing (horizontal)
+    volumes.push({
+        width: buildableWidth * 0.85,
+        depth: wingWidth,
+        height: height,
+        x: 0,
+        z: -buildableDepth / 2 + wingWidth / 2,
+        floors: maxFloors
+    });
+
+    // Left wing (vertical)
+    volumes.push({
+        width: wingWidth,
+        depth: buildableDepth * 0.7,
+        height: height,
+        x: -buildableWidth / 2 + wingWidth / 2,
+        z: wingWidth / 2,
+        floors: maxFloors
+    });
+
+    // Right wing (vertical)
+    volumes.push({
+        width: wingWidth,
+        depth: buildableDepth * 0.7,
+        height: height,
+        x: buildableWidth / 2 - wingWidth / 2,
+        z: wingWidth / 2,
+        floors: maxFloors
+    });
+
+    let totalGFA = 0;
+    volumes.forEach(v => totalGFA += v.width * v.depth * v.floors);
+
+    const actualFSR = totalGFA / siteData.area;
+
+    // Calculate land use allocation
+    const landUses = calculateLandUseAllocation(totalGFA);
+    assignLandUsesToVolumes(volumes, landUses);
+
+    // Calculate building metrics
+    const metrics = calculateBuildingMetrics(volumes);
+
+    return {
+        name: 'Courtyard Form',
+        description: 'U-shaped with central courtyard',
+        volumes: volumes,
+        gfa: metrics.GFA,
+        fsr: metrics.GFA / siteData.area,
+        height: height,
+        floors: maxFloors,
+        landUses: landUses,
+        metrics: metrics,
+        color: 0xFBBC04
+    };
+}
+
+/**
+ * OPTION 4: L-Shaped Form
+ * Two perpendicular wings
+ */
+function generateOption4_LShapedForm(buildableWidth, buildableDepth, targetGFA) {
+    const maxFloors = Math.floor(buildingParams.heightLimit / buildingParams.floorHeight);
+    const height = maxFloors * buildingParams.floorHeight;
+
+    const wingWidth = 8;
+
+    const volumes = [];
+
+    // Horizontal wing
+    volumes.push({
+        width: buildableWidth * 0.75,
+        depth: wingWidth,
+        height: height,
+        x: buildableWidth * 0.125,
+        z: -buildableDepth / 2 + wingWidth / 2,
+        floors: maxFloors
+    });
+
+    // Vertical wing
+    volumes.push({
+        width: wingWidth,
+        depth: buildableDepth * 0.65,
+        height: height,
+        x: -buildableWidth / 2 + wingWidth / 2,
+        z: buildableDepth * 0.075,
+        floors: maxFloors
+    });
+
+    let totalGFA = 0;
+    volumes.forEach(v => totalGFA += v.width * v.depth * v.floors);
+
+    const actualFSR = totalGFA / siteData.area;
+
+    // Calculate land use allocation
+    const landUses = calculateLandUseAllocation(totalGFA);
+    assignLandUsesToVolumes(volumes, landUses);
+
+    // Calculate building metrics
+    const metrics = calculateBuildingMetrics(volumes);
+
+    return {
+        name: 'L-Shaped',
+        description: 'Two perpendicular wings',
+        volumes: volumes,
+        gfa: metrics.GFA,
+        fsr: metrics.GFA / siteData.area,
+        height: height,
+        floors: maxFloors,
+        landUses: landUses,
+        metrics: metrics,
+        color: 0x34A853
+    };
+}
+
+/**
+ * OPTION 5: Split Towers
+ * Two separate tower elements
+ */
+function generateOption5_SplitTowers(buildableWidth, buildableDepth, targetGFA) {
+    const maxFloors = Math.floor(buildingParams.heightLimit / buildingParams.floorHeight);
+
+    const volumes = [];
+
+    // Tower 1 - Taller
+    const tower1Floors = maxFloors;
+    const tower1Height = tower1Floors * buildingParams.floorHeight;
+    const tower1Width = buildableWidth * 0.4;
+    const tower1Depth = buildableDepth * 0.45;
+
+    volumes.push({
+        width: tower1Width,
+        depth: tower1Depth,
+        height: tower1Height,
+        x: -buildableWidth * 0.25,
+        z: -buildableDepth * 0.15,
+        floors: tower1Floors
+    });
+
+    // Tower 2 - Slightly shorter
+    const tower2Floors = Math.floor(maxFloors * 0.75);
+    const tower2Height = tower2Floors * buildingParams.floorHeight;
+    const tower2Width = buildableWidth * 0.38;
+    const tower2Depth = buildableDepth * 0.4;
+
+    volumes.push({
+        width: tower2Width,
+        depth: tower2Depth,
+        height: tower2Height,
+        x: buildableWidth * 0.22,
+        z: buildableDepth * 0.1,
+        floors: tower2Floors
+    });
+
+    let totalGFA = 0;
+    volumes.forEach(v => totalGFA += v.width * v.depth * v.floors);
+
+    const actualFSR = totalGFA / siteData.area;
+
+    // Calculate land use allocation
+    const landUses = calculateLandUseAllocation(totalGFA);
+    assignLandUsesToVolumes(volumes, landUses);
+
+    // Calculate building metrics
+    const metrics = calculateBuildingMetrics(volumes);
+
+    return {
+        name: 'Split Towers',
+        description: 'Two separate tower elements',
+        volumes: volumes,
+        gfa: metrics.GFA,
+        fsr: metrics.GFA / siteData.area,
+        height: tower1Height,
+        floors: tower1Floors,
+        landUses: landUses,
+        metrics: metrics,
+        color: 0x9C27B0
+    };
+}
+
+/**
+ * Display generated options in the right panel
+ */
+function displayGeneratedOptions() {
+    const container = document.getElementById('optionsContainer');
+    container.innerHTML = '';
+
+    generatedOptions.forEach((option, index) => {
+        const card = document.createElement('div');
+        card.className = 'option-card';
+        card.dataset.index = index;
+
+        // Generate land use breakdown HTML
+        let landUseHTML = '';
+        if (option.landUses) {
+            landUseHTML = `
+                <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 5px;">
+                    <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Land Use Mix</div>
+            `;
+
+            if (option.landUses.residential.percentage > 0) {
+                landUseHTML += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <div style="width: 12px; height: 12px; background-color: ${LAND_USES.residential.displayColor}; border-radius: 2px;"></div>
+                            <span style="font-size: 0.75rem;">Residential</span>
+                        </div>
+                        <span style="font-size: 0.75rem; font-weight: 600;">${option.landUses.residential.percentage.toFixed(0)}% (${option.landUses.residential.gfa.toFixed(0)}m²)</span>
+                    </div>
+                `;
+            }
+
+            if (option.landUses.commercial.percentage > 0) {
+                landUseHTML += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <div style="width: 12px; height: 12px; background-color: ${LAND_USES.commercial.displayColor}; border-radius: 2px;"></div>
+                            <span style="font-size: 0.75rem;">Commercial</span>
+                        </div>
+                        <span style="font-size: 0.75rem; font-weight: 600;">${option.landUses.commercial.percentage.toFixed(0)}% (${option.landUses.commercial.gfa.toFixed(0)}m²)</span>
+                    </div>
+                `;
+            }
+
+            if (option.landUses.retail.percentage > 0) {
+                landUseHTML += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <div style="width: 12px; height: 12px; background-color: ${LAND_USES.retail.displayColor}; border-radius: 2px;"></div>
+                            <span style="font-size: 0.75rem;">Retail</span>
+                        </div>
+                        <span style="font-size: 0.75rem; font-weight: 600;">${option.landUses.retail.percentage.toFixed(0)}% (${option.landUses.retail.gfa.toFixed(0)}m²)</span>
+                    </div>
+                `;
+            }
+
+            landUseHTML += `</div>`;
+        }
+
+        // Generate metrics HTML (Archistar-style)
+        let metricsHTML = '';
+        if (option.metrics) {
+            metricsHTML = `
+                <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 5px;">
+                    <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Building Metrics</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.7rem;">
+                        <div style="padding: 4px; background: #f8f9fa; border-radius: 3px;">
+                            <div style="color: var(--text-secondary);">GBA</div>
+                            <div style="font-weight: 600; color: var(--primary-color);">${option.metrics.GBA.toFixed(0)}m²</div>
+                        </div>
+                        <div style="padding: 4px; background: #f8f9fa; border-radius: 3px;">
+                            <div style="color: var(--text-secondary);">NSA</div>
+                            <div style="font-weight: 600; color: var(--primary-color);">${option.metrics.NSA.toFixed(0)}m²</div>
+                        </div>
+                        <div style="padding: 4px; background: #f8f9fa; border-radius: 3px;">
+                            <div style="color: var(--text-secondary);">GFA</div>
+                            <div style="font-weight: 600; color: var(--primary-color);">${option.metrics.GFA.toFixed(0)}m²</div>
+                        </div>
+                        <div style="padding: 4px; background: #f8f9fa; border-radius: 3px;">
+                            <div style="color: var(--text-secondary);">Efficiency</div>
+                            <div style="font-weight: 600; color: var(--secondary-color);">${option.metrics.efficiency.toFixed(1)}%</div>
+                        </div>
+                        <div style="padding: 4px; background: #f8f9fa; border-radius: 3px;">
+                            <div style="color: var(--text-secondary);">Open Space</div>
+                            <div style="font-weight: 600; color: #34A853;">${option.metrics.openSpace.toFixed(0)}m²</div>
+                        </div>
+                        <div style="padding: 4px; background: #f8f9fa; border-radius: 3px;">
+                            <div style="color: var(--text-secondary);">Coverage</div>
+                            <div style="font-weight: 600; color: var(--primary-color);">${(100 - option.metrics.openSpacePercent).toFixed(0)}%</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        card.innerHTML = `
+            <h6>${option.name}</h6>
+            <div class="option-thumbnail">${option.description}</div>
+            <div class="option-stats">
+                <div class="option-stat">
+                    <div class="option-stat-label">FSR</div>
+                    <div class="option-stat-value">${option.fsr.toFixed(2)}:1</div>
+                </div>
+                <div class="option-stat">
+                    <div class="option-stat-label">Height</div>
+                    <div class="option-stat-value">${option.height.toFixed(1)}m</div>
+                </div>
+                <div class="option-stat">
+                    <div class="option-stat-label">Floors</div>
+                    <div class="option-stat-value">${option.floors}</div>
+                </div>
+                <div class="option-stat">
+                    <div class="option-stat-label">GFA</div>
+                    <div class="option-stat-value">${option.gfa.toFixed(0)} m²</div>
+                </div>
+            </div>
+            ${metricsHTML}
+            ${landUseHTML}
+            <button class="btn btn-primary btn-sm w-100 mb-2 select-btn">Select Option</button>
+            <button class="btn btn-outline-primary btn-sm w-100 mb-2 cashflow-btn">Use for Cashflow</button>
+            <button class="btn btn-outline-secondary btn-sm w-100 compliance-btn">
+                <svg width="14" height="14" style="margin-right: 4px; vertical-align: middle;" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M10.854 8.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 0 1 .708-.708L7.5 10.793l2.646-2.647a.5.5 0 0 1 .708 0z"/>
+                    <path d="M8 1a2.5 2.5 0 0 1 2.5 2.5V4h-5v-.5A2.5 2.5 0 0 1 8 1zm3.5 3v-.5a3.5 3.5 0 1 0-7 0V4H1v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4h-3.5z"/>
+                </svg>
+                Check ADG Compliance
+            </button>
+        `;
+
+        // Event listeners
+        card.querySelector('.select-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectOption(index);
+        });
+
+        card.querySelector('.cashflow-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            useBuildingForCashflow(index);
+        });
+
+        card.querySelector('.compliance-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showComplianceModal(index);
+        });
+
+        card.addEventListener('click', () => selectOption(index));
+
+        container.appendChild(card);
+    });
+}
+
+/**
+ * Select and visualize a building option
+ */
+function selectOption(index) {
+    selectedOption = index;
+    const option = generatedOptions[index];
+
+    // Update UI selection state
+    document.querySelectorAll('.option-card').forEach((card, i) => {
+        if (i === index) {
+            card.classList.add('selected');
+        } else {
+            card.classList.remove('selected');
+        }
+    });
+
+    // Clear existing building meshes
+    clearBuildingMeshes();
+
+    // Create 3D visualization of selected option
+    visualizeBuilding(option);
+
+    // Update and show legend
+    updateUnitLegend(option);
+}
+
+/**
+ * Update the unit mix legend based on selected option
+ */
+function updateUnitLegend(option) {
+    const legendContent = document.getElementById('unitLegendContent');
+    const legend = document.getElementById('unitLegend');
+
+    if (!option || !option.landUses) {
+        legend.style.display = 'none';
+        return;
+    }
+
+    let html = '';
+
+    // Show land uses first
+    html += '<div style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #ddd;">';
+    html += '<div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px;">Land Use</div>';
+
+    if (option.landUses.residential.percentage > 0) {
+        html += `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <div style="width: 16px; height: 16px; background-color: ${LAND_USES.residential.displayColor}; border: 1px solid #333; border-radius: 2px;"></div>
+                <span style="font-size: 0.75rem;">${LAND_USES.residential.name} (${option.landUses.residential.percentage.toFixed(0)}%)</span>
+            </div>
+        `;
+    }
+
+    if (option.landUses.commercial.percentage > 0) {
+        html += `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <div style="width: 16px; height: 16px; background-color: ${LAND_USES.commercial.displayColor}; border: 1px solid #333; border-radius: 2px;"></div>
+                <span style="font-size: 0.75rem;">${LAND_USES.commercial.name} (${option.landUses.commercial.percentage.toFixed(0)}%)</span>
+            </div>
+        `;
+    }
+
+    if (option.landUses.retail.percentage > 0) {
+        html += `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <div style="width: 16px; height: 16px; background-color: ${LAND_USES.retail.displayColor}; border: 1px solid #333; border-radius: 2px;"></div>
+                <span style="font-size: 0.75rem;">${LAND_USES.retail.name} (${option.landUses.retail.percentage.toFixed(0)}%)</span>
+            </div>
+        `;
+    }
+
+    html += '</div>';
+
+    // Show residential unit types if there's residential area
+    if (option.landUses.residential.percentage > 0) {
+        html += '<div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px;">Residential Units</div>';
+
+        if (buildingParams.studio > 0) {
+            html += `
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <div style="width: 16px; height: 16px; background-color: ${UNIT_TYPES.studio.displayColor}; border: 1px solid #333; border-radius: 2px;"></div>
+                    <span style="font-size: 0.75rem;">${UNIT_TYPES.studio.name} (${buildingParams.studio}%)</span>
+                </div>
+            `;
+        }
+
+        if (buildingParams.oneBr > 0) {
+            html += `
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <div style="width: 16px; height: 16px; background-color: ${UNIT_TYPES.oneBr.displayColor}; border: 1px solid #333; border-radius: 2px;"></div>
+                    <span style="font-size: 0.75rem;">${UNIT_TYPES.oneBr.name} (${buildingParams.oneBr}%)</span>
+                </div>
+            `;
+        }
+
+        if (buildingParams.twoBr > 0) {
+            html += `
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <div style="width: 16px; height: 16px; background-color: ${UNIT_TYPES.twoBr.displayColor}; border: 1px solid #333; border-radius: 2px;"></div>
+                    <span style="font-size: 0.75rem;">${UNIT_TYPES.twoBr.name} (${buildingParams.twoBr}%)</span>
+                </div>
+            `;
+        }
+
+        if (buildingParams.threeBr > 0) {
+            html += `
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <div style="width: 16px; height: 16px; background-color: ${UNIT_TYPES.threeBr.displayColor}; border: 1px solid #333; border-radius: 2px;"></div>
+                    <span style="font-size: 0.75rem;">${UNIT_TYPES.threeBr.name} (${buildingParams.threeBr}%)</span>
+                </div>
+            `;
+        }
+    }
+
+    legendContent.innerHTML = html;
+    legend.style.display = 'block';
+}
+
+/**
+ * Calculate unit distribution for residential floors
+ * Returns array of units per floor based on unit mix percentages
+ */
+function calculateUnits(residentialFloors, floorPlateArea) {
+    // Estimate how many total units based on average unit size and floor plate
+    const avgUnitSize = (
+        UNIT_TYPES.studio.avgSize * (buildingParams.studio / 100) +
+        UNIT_TYPES.oneBr.avgSize * (buildingParams.oneBr / 100) +
+        UNIT_TYPES.twoBr.avgSize * (buildingParams.twoBr / 100) +
+        UNIT_TYPES.threeBr.avgSize * (buildingParams.threeBr / 100)
+    );
+
+    // Account for circulation and walls
+    const usableFloorArea = floorPlateArea * (1 - buildingParams.circulation / 100 - buildingParams.wallThickness / 100);
+    const unitsPerFloor = Math.floor(usableFloorArea / avgUnitSize);
+    const totalUnits = unitsPerFloor * residentialFloors;
+
+    // Calculate actual unit counts based on percentages
+    const unitCounts = {
+        studio: Math.round(totalUnits * buildingParams.studio / 100),
+        oneBr: Math.round(totalUnits * buildingParams.oneBr / 100),
+        twoBr: Math.round(totalUnits * buildingParams.twoBr / 100),
+        threeBr: Math.round(totalUnits * buildingParams.threeBr / 100)
+    };
+
+    return { unitsPerFloor, unitCounts, totalUnits };
+}
+
+/**
+ * Visualize building with UNIT-BY-UNIT separate geometry
+ * Each unit shown as individual colored block based on unit type
+ * SketchUp-style: solid colors, no transparency, clean edges
+ */
+function visualizeBuilding(option) {
+    const offsetX = -buildingParams.sideSetback;
+    const offsetZ = (buildingParams.frontSetback - buildingParams.rearSetback) / 2;
+    const floorHeight = buildingParams.floorHeight;
+
+    option.volumes.forEach(volume => {
+        const baseHeight = volume.baseHeight || 0;
+
+        // Determine land use for each floor
+        const floorLandUses = [];
+        if (volume.landUses && volume.landUses.length > 0) {
+            for (let f = 0; f < volume.floors; f++) {
+                let landUseForFloor = volume.landUses[0];
+                for (const landUse of volume.landUses) {
+                    if (f >= landUse.startFloor && f < landUse.endFloor) {
+                        landUseForFloor = landUse;
+                        break;
+                    }
+                }
+                floorLandUses.push(landUseForFloor);
+            }
+        } else {
+            for (let f = 0; f < volume.floors; f++) {
+                floorLandUses.push({ color: option.color, type: 'unknown' });
+            }
+        }
+
+        // Calculate units per floor for residential floors
+        const avgUnitWidth = 8; // meters
+        const unitsPerFloor = Math.max(1, Math.floor(volume.width / avgUnitWidth)); // Ensure at least 1 unit per floor
+
+        console.log(`Volume: width=${volume.width.toFixed(1)}m, floors=${volume.floors}, unitsPerFloor=${unitsPerFloor}`);
+
+        // Render each floor with individual units
+        for (let floor = 0; floor < volume.floors; floor++) {
+            const landUse = floorLandUses[floor];
+            const floorYBase = baseHeight + (floor * floorHeight);
+
+            // If residential floor, show individual units
+            if (landUse.type === 'residential') {
+                const unitWidth = volume.width / unitsPerFloor;
+
+                // Create a proper distribution array based on unit mix percentages
+                const unitDistribution = [];
+                const totalPercentage = buildingParams.studio + buildingParams.oneBr +
+                                       buildingParams.twoBr + buildingParams.threeBr;
+
+                // Build distribution array
+                const studioCount = Math.round((buildingParams.studio / totalPercentage) * unitsPerFloor);
+                const oneBrCount = Math.round((buildingParams.oneBr / totalPercentage) * unitsPerFloor);
+                const twoBrCount = Math.round((buildingParams.twoBr / totalPercentage) * unitsPerFloor);
+                const threeBrCount = unitsPerFloor - studioCount - oneBrCount - twoBrCount;
+
+                for (let i = 0; i < studioCount; i++) unitDistribution.push('studio');
+                for (let i = 0; i < oneBrCount; i++) unitDistribution.push('oneBr');
+                for (let i = 0; i < twoBrCount; i++) unitDistribution.push('twoBr');
+                for (let i = 0; i < threeBrCount; i++) unitDistribution.push('threeBr');
+
+                // Shuffle the distribution for more realistic appearance
+                for (let i = unitDistribution.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [unitDistribution[i], unitDistribution[j]] = [unitDistribution[j], unitDistribution[i]];
+                }
+
+                for (let unitIdx = 0; unitIdx < unitsPerFloor; unitIdx++) {
+                    // Get unit type from distribution array
+                    const unitType = unitDistribution[unitIdx] || 'oneBr';
+                    const unitColor = UNIT_TYPES[unitType].color;
+
+                    // Unit position
+                    const unitX = volume.x + offsetX - (volume.width / 2) + (unitIdx * unitWidth) + (unitWidth / 2);
+                    const unitY = floorYBase + (floorHeight / 2);
+                    const unitZ = volume.z + offsetZ;
+
+                    // Create unit box as touching masses (minimal gap for visual clarity)
+                    const unitGeometry = new THREE.BoxGeometry(
+                        unitWidth * 0.98, // minimal gap for visual distinction
+                        floorHeight * 0.95, // minimal gap between floors
+                        volume.depth * 0.98 // depth
+                    );
+                    const unitMaterial = new THREE.MeshStandardMaterial({
+                        color: unitColor,
+                        roughness: 0.7,
+                        metalness: 0.2
+                        // NO transparency - SketchUp style
+                    });
+
+                    const unitMesh = new THREE.Mesh(unitGeometry, unitMaterial);
+                    unitMesh.position.set(unitX, unitY, unitZ);
+                    unitMesh.castShadow = true;
+                    unitMesh.receiveShadow = true;
+
+                    // Store metadata for interaction and reconfiguration
+                    unitMesh.userData = {
+                        type: 'unit',
+                        unitType: unitType,
+                        floor: floor,
+                        unitIndex: unitIdx,
+                        volumeIndex: option.volumes.indexOf(volume),
+                        color: unitColor
+                    };
+
+                    // Add black edges for SketchUp look - STRONG outlines for individual units
+                    const edges = new THREE.EdgesGeometry(unitGeometry);
+                    const lineMaterial = new THREE.LineBasicMaterial({
+                        color: 0x000000,
+                        linewidth: 2
+                    });
+                    const lines = new THREE.LineSegments(edges, lineMaterial);
+                    lines.position.copy(unitMesh.position);
+
+                    // Store same metadata for edges
+                    lines.userData = unitMesh.userData;
+
+                    scene.add(lines);
+                    buildingMeshes.push(lines);
+
+                    scene.add(unitMesh);
+                    buildingMeshes.push(unitMesh);
+                }
+            } else {
+                // Commercial/Retail - show as single floor plate
+                const floorGeometry = new THREE.BoxGeometry(
+                    volume.width * 0.98,
+                    floorHeight * 0.9,
+                    volume.depth * 0.98
+                );
+                const floorMaterial = new THREE.MeshStandardMaterial({
+                    color: landUse.color,
+                    roughness: 0.8,
+                    metalness: 0.1
+                });
+
+                const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+                floorMesh.position.set(
+                    volume.x + offsetX,
+                    baseHeight + (floor * floorHeight) + (floorHeight / 2),
+                    volume.z + offsetZ
+                );
+                floorMesh.castShadow = true;
+                floorMesh.receiveShadow = true;
+
+                // Add black edges for floor outlines
+                const edges = new THREE.EdgesGeometry(floorGeometry);
+                const lineMaterial = new THREE.LineBasicMaterial({
+                    color: 0x000000,
+                    linewidth: 2
+                });
+                const lines = new THREE.LineSegments(edges, lineMaterial);
+                lines.position.copy(floorMesh.position);
+                scene.add(lines);
+                buildingMeshes.push(lines);
+
+                scene.add(floorMesh);
+                buildingMeshes.push(floorMesh);
+            }
+        }
+
+        // Add circulation core for residential floors only
+        const hasResidential = volume.landUses?.some(lu => lu.type === 'residential');
+        if (hasResidential && option.metrics?.circulation > 0) {
+            const coreWidth = 4;
+            const coreDepth = 6;
+            const coreHeight = volume.height;
+            const coreGeometry = new THREE.BoxGeometry(coreWidth, coreHeight, coreDepth);
+            const coreMaterial = new THREE.MeshStandardMaterial({
+                color: 0x444444,
+                roughness: 0.9,
+                metalness: 0.05
+            });
+
+            const coreOffsetX = (volume.width / 2) - (coreWidth / 2) - 2;
+
+            const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
+            coreMesh.position.set(
+                volume.x + offsetX - coreOffsetX,
+                baseHeight + (coreHeight / 2),
+                volume.z + offsetZ
+            );
+            coreMesh.castShadow = true;
+            coreMesh.receiveShadow = true;
+
+            const coreEdges = new THREE.EdgesGeometry(coreGeometry);
+            const coreLines = new THREE.LineSegments(coreEdges, new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }));
+            coreMesh.add(coreLines);
+
+            scene.add(coreMesh);
+            buildingMeshes.push(coreMesh);
+        }
+    });
+}
+
+/**
+ * Clear all building meshes from scene
+ */
+function clearBuildingMeshes() {
+    buildingMeshes.forEach(mesh => {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.material.dispose();
+    });
+    buildingMeshes = [];
+}
+
+/**
+ * Use selected building form data for cashflow model
+ */
+function useBuildingForCashflow(index) {
+    const option = generatedOptions[index];
+
+    // Calculate GBA (Gross Building Area) - typically 5-10% more than GFA due to walls
+    const gba = option.gfa * 1.07;  // 7% factor for walls and structure
+
+    // Store building data in sessionStorage
+    const buildingData = {
+        name: option.name,
+        gfa: Math.round(option.gfa),
+        gba: Math.round(gba),
+        fsr: option.fsr,
+        height: option.height,
+        floors: option.floors,
+        siteArea: siteData.area,
+        lot: siteData.lot,
+        dp: siteData.dp,
+        address: siteData.address,
+        volumes: option.volumes,
+        landUses: option.landUses
+    };
+
+    sessionStorage.setItem('selectedBuilding', JSON.stringify(buildingData));
+
+    // Navigate to cashflow model page
+    if (confirm(`Use ${option.name} (${option.gfa.toFixed(0)} m² GFA) for cashflow analysis?`)) {
+        window.location.href = '/';
+    }
+}
+
+/**
+ * Handle window resize
+ */
+function onWindowResize() {
+    const container = document.getElementById('canvas3d');
+    const aspect = container.clientWidth / container.clientHeight;
+
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(container.clientWidth, container.clientHeight);
+}
+
+/**
+ * Animation loop
+ */
+function animate() {
+    requestAnimationFrame(animate);
+
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+/**
+ * NSW ADG COMPLIANCE CHECKING
+ * Based on NSW Apartment Design Guide requirements
+ */
+
+/**
+ * Calculate NSW ADG compliance for a building option
+ */
+function calculateADGCompliance(option) {
+    const compliance = {
+        items: [],
+        summary: { pass: 0, partial: 0, fail: 0 }
+    };
+
+    // 1. BUILDING SEPARATION (Setbacks from boundaries)
+    const buildingHeight = option.height;
+    const numStoreys = option.floors;
+
+    let requiredSideSetback, requiredRearSetback;
+    if (buildingHeight <= 12) { // Up to 4 storeys
+        requiredSideSetback = 6; // habitable rooms
+        requiredRearSetback = 6;
+    } else if (buildingHeight <= 25) { // 5-8 storeys
+        requiredSideSetback = 9;
+        requiredRearSetback = 9;
+    } else { // 9+ storeys
+        requiredSideSetback = 12;
+        requiredRearSetback = 12;
+    }
+
+    const sideSetbackCompliance = buildingParams.sideSetback >= requiredSideSetback;
+    const rearSetbackCompliance = buildingParams.rearSetback >= requiredRearSetback;
+    const frontSetbackCompliance = buildingParams.frontSetback >= 6; // Minimum front setback
+
+    compliance.items.push({
+        category: 'Setbacks & Separation',
+        requirement: 'Side Boundary Setback',
+        criteria: `Minimum ${requiredSideSetback}m for ${numStoreys} storey building`,
+        actual: `${buildingParams.sideSetback}m`,
+        status: sideSetbackCompliance ? 'pass' : 'fail',
+        icon: sideSetbackCompliance ? '✓' : '✗'
+    });
+
+    compliance.items.push({
+        category: 'Setbacks & Separation',
+        requirement: 'Rear Boundary Setback',
+        criteria: `Minimum ${requiredRearSetback}m for ${numStoreys} storey building`,
+        actual: `${buildingParams.rearSetback}m`,
+        status: rearSetbackCompliance ? 'pass' : 'fail',
+        icon: rearSetbackCompliance ? '✓' : '✗'
+    });
+
+    compliance.items.push({
+        category: 'Setbacks & Separation',
+        requirement: 'Front Boundary Setback',
+        criteria: 'Minimum 6m (typical requirement)',
+        actual: `${buildingParams.frontSetback}m`,
+        status: frontSetbackCompliance ? 'pass' : 'fail',
+        icon: frontSetbackCompliance ? '✓' : '✗'
+    });
+
+    // 2. DEEP SOIL ZONES
+    const siteArea = siteData.area;
+    let requiredDeepSoilPercent = 7;
+    let requiredDeepSoilDimension = 0;
+
+    if (siteArea < 650) {
+        requiredDeepSoilDimension = 0; // No minimum dimension
+    } else if (siteArea <= 1500) {
+        requiredDeepSoilDimension = 3;
+    } else {
+        requiredDeepSoilDimension = 6;
+    }
+
+    const requiredDeepSoilArea = siteArea * (requiredDeepSoilPercent / 100);
+    const actualOpenSpace = option.metrics ? option.metrics.openSpace : 0;
+    const deepSoilCompliance = actualOpenSpace >= requiredDeepSoilArea;
+
+    compliance.items.push({
+        category: 'Landscaping & Open Space',
+        requirement: 'Deep Soil Zone',
+        criteria: `Minimum ${requiredDeepSoilPercent}% (${requiredDeepSoilArea.toFixed(0)}m²) with ${requiredDeepSoilDimension}m minimum dimension`,
+        actual: `${actualOpenSpace.toFixed(0)}m² open space available`,
+        status: deepSoilCompliance ? 'pass' : 'partial',
+        icon: deepSoilCompliance ? '✓' : '▸'
+    });
+
+    // 3. SOLAR ACCESS
+    // Simplified check - in reality this requires detailed shadow analysis
+    const openSpacePercent = option.metrics ? option.metrics.openSpacePercent : 0;
+    const solarAccessCompliance = openSpacePercent >= 25; // Simplified: adequate open space suggests better solar access
+
+    compliance.items.push({
+        category: 'Solar Access & Ventilation',
+        requirement: 'Solar Access to Open Space',
+        criteria: '70% of apartments receive minimum 2 hours direct sunlight (9am-3pm mid-winter)',
+        actual: openSpacePercent >= 25 ? 'Adequate site coverage for solar access' : 'Limited open space may restrict solar access',
+        status: solarAccessCompliance ? 'partial' : 'fail',
+        icon: solarAccessCompliance ? '▸' : '✗'
+    });
+
+    // 4. NATURAL VENTILATION
+    // Simplified check - 60% of apartments should be cross-ventilated
+    const hasReasonableDepth = option.volumes && option.volumes.some(v => v.depth <= 18);
+    const ventilationCompliance = hasReasonableDepth;
+
+    compliance.items.push({
+        category: 'Solar Access & Ventilation',
+        requirement: 'Natural Cross Ventilation',
+        criteria: '60% of apartments in first 9 storeys naturally cross-ventilated',
+        actual: hasReasonableDepth ? 'Building depth allows cross-ventilation (<18m)' : 'Building depth may limit cross-ventilation',
+        status: ventilationCompliance ? 'pass' : 'partial',
+        icon: ventilationCompliance ? '✓' : '▸'
+    });
+
+    // 5. CEILING HEIGHTS
+    const ceilingHeightCompliance = buildingParams.floorHeight >= 3.0; // 2.7m + structure
+
+    compliance.items.push({
+        category: 'Apartment Design',
+        requirement: 'Ceiling Height',
+        criteria: 'Minimum 2.7m for all habitable rooms',
+        actual: `${(buildingParams.floorHeight - 0.3).toFixed(1)}m (assuming 0.3m structure)`,
+        status: ceilingHeightCompliance ? 'pass' : 'fail',
+        icon: ceilingHeightCompliance ? '✓' : '✗'
+    });
+
+    // 6. BUILDING DEPTH
+    const maxDepth = Math.max(...option.volumes.map(v => v.depth));
+    const depthCompliance = maxDepth <= 18; // Typical ADG maximum for cross ventilation
+
+    compliance.items.push({
+        category: 'Apartment Design',
+        requirement: 'Building Depth',
+        criteria: 'Maximum 18m for adequate natural ventilation',
+        actual: `${maxDepth.toFixed(1)}m`,
+        status: depthCompliance ? 'pass' : 'partial',
+        icon: depthCompliance ? '✓' : '▸'
+    });
+
+    // 7. COMMUNAL OPEN SPACE
+    const requiredCommunalSpace = siteArea * 0.25; // 25% is a common benchmark
+    const communalSpaceCompliance = actualOpenSpace >= requiredCommunalSpace;
+
+    compliance.items.push({
+        category: 'Landscaping & Open Space',
+        requirement: 'Communal Open Space',
+        criteria: `Minimum 25% of site area (${requiredCommunalSpace.toFixed(0)}m²)`,
+        actual: `${actualOpenSpace.toFixed(0)}m²`,
+        status: communalSpaceCompliance ? 'pass' : 'partial',
+        icon: communalSpaceCompliance ? '✓' : '▸'
+    });
+
+    // 8. APARTMENT MIX (INDICATIVE)
+    const hasResidential = option.landUses && option.landUses.residential.percentage > 0;
+    compliance.items.push({
+        category: 'Apartment Design',
+        requirement: 'Apartment Size Standards',
+        criteria: 'Studio: 35m², 1bed: 50m², 2bed: 70m², 3bed: 90m²',
+        actual: hasResidential ? 'To be determined in detailed design' : 'N/A - No residential component',
+        status: 'partial',
+        icon: '▸'
+    });
+
+    // Calculate summary
+    compliance.items.forEach(item => {
+        if (item.status === 'pass') compliance.summary.pass++;
+        else if (item.status === 'partial') compliance.summary.partial++;
+        else if (item.status === 'fail') compliance.summary.fail++;
+    });
+
+    return compliance;
+}
+
+/**
+ * Show compliance floating window with tabs
+ */
+function showComplianceModal(optionIndex) {
+    const option = generatedOptions[optionIndex];
+    const window = document.getElementById('complianceWindow');
+    const title = document.getElementById('complianceTitle');
+
+    title.textContent = `${option.name} - Compliance`;
+
+    // Populate all tabs
+    populateMetricsTab(option);
+    populatePlanningControlsTab(option);
+
+    // Populate and show ADG popup
+    populateADGPopup(option);
+    showAdgPopup();
+
+    window.classList.add('active');
+    window.classList.remove('minimized');
+
+    // Switch to metrics tab by default
+    switchComplianceTab('metrics');
+}
+
+/**
+ * Populate Metrics Tab
+ */
+function populateMetricsTab(option) {
+    const tab = document.getElementById('tab-metrics');
+    const metrics = option.metrics;
+
+    let html = `
+        <div class="metrics-grid">
+            <div class="metric-box">
+                <div class="metric-label">GBA</div>
+                <div class="metric-value">${metrics.GBA.toFixed(0)} m²</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">GFA</div>
+                <div class="metric-value">${metrics.GFA.toFixed(0)} m²</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">NSA</div>
+                <div class="metric-value">${metrics.NSA.toFixed(0)} m²</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Efficiency</div>
+                <div class="metric-value">${metrics.efficiency.toFixed(1)}%</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Open Space</div>
+                <div class="metric-value">${metrics.openSpace.toFixed(0)} m²</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Coverage</div>
+                <div class="metric-value">${(100 - metrics.openSpacePercent).toFixed(0)}%</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Circulation</div>
+                <div class="metric-value">${metrics.circulation.toFixed(0)} m²</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Walls</div>
+                <div class="metric-value">${metrics.walls.toFixed(0)} m²</div>
+            </div>
+        </div>
+
+        <div class="compliance-section-compact">
+            <div class="compliance-section-header">Building Specifications</div>
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <div class="metric-label">Height</div>
+                    <div class="metric-value large">${option.height.toFixed(1)} m</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Floors</div>
+                    <div class="metric-value large">${option.floors}</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">FSR Achieved</div>
+                    <div class="metric-value large">${option.fsr.toFixed(2)}:1</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Footprint</div>
+                    <div class="metric-value">${metrics.buildingFootprint.toFixed(0)} m²</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Land use breakdown if available
+    if (option.landUses) {
+        html += `
+            <div class="compliance-section-compact">
+                <div class="compliance-section-header">Land Use Mix</div>
+        `;
+
+        if (option.landUses.residential.percentage > 0) {
+            html += `
+                <div class="metric-box" style="border-left-color: #667eea;">
+                    <div class="metric-label">Residential</div>
+                    <div class="metric-value">${option.landUses.residential.gfa.toFixed(0)} m² (${option.landUses.residential.percentage.toFixed(0)}%)</div>
+                </div>
+            `;
+        }
+
+        if (option.landUses.commercial.percentage > 0) {
+            html += `
+                <div class="metric-box" style="border-left-color: #f093fb;">
+                    <div class="metric-label">Commercial</div>
+                    <div class="metric-value">${option.landUses.commercial.gfa.toFixed(0)} m² (${option.landUses.commercial.percentage.toFixed(0)}%)</div>
+                </div>
+            `;
+        }
+
+        if (option.landUses.retail.percentage > 0) {
+            html += `
+                <div class="metric-box" style="border-left-color: #4facfe;">
+                    <div class="metric-label">Retail</div>
+                    <div class="metric-value">${option.landUses.retail.gfa.toFixed(0)} m² (${option.landUses.retail.percentage.toFixed(0)}%)</div>
+                </div>
+            `;
+        }
+
+        html += `</div>`;
+    }
+
+    tab.innerHTML = html;
+}
+
+/**
+ * Populate Planning Controls Tab
+ */
+function populatePlanningControlsTab(option) {
+    const tab = document.getElementById('tab-controls');
+
+    // Calculate compliance with planning controls
+    const controls = [];
+
+    // FSR compliance
+    const targetFSR = buildingParams.fsr;
+    const achievedFSR = option.fsr;
+    const fsrCompliance = achievedFSR <= targetFSR;
+    controls.push({
+        title: 'Floor Space Ratio (FSR)',
+        requirement: `Maximum ${targetFSR.toFixed(2)}:1`,
+        actual: `${achievedFSR.toFixed(2)}:1`,
+        status: fsrCompliance ? 'pass' : 'fail',
+        statusText: fsrCompliance ? 'PASS' : 'FAIL'
+    });
+
+    // Height limit compliance
+    const heightLimit = buildingParams.heightLimit;
+    const achievedHeight = option.height;
+    const heightCompliance = achievedHeight <= heightLimit;
+    controls.push({
+        title: 'Maximum Height',
+        requirement: `${heightLimit}m`,
+        actual: `${achievedHeight.toFixed(1)}m`,
+        status: heightCompliance ? 'pass' : 'fail',
+        statusText: heightCompliance ? 'PASS' : 'FAIL'
+    });
+
+    // Setbacks
+    const sideSetback = buildingParams.sideSetback;
+    const rearSetback = buildingParams.rearSetback;
+    const frontSetback = buildingParams.frontSetback;
+
+    controls.push({
+        title: 'Side Setback',
+        requirement: 'As per ADG requirements',
+        actual: `${sideSetback}m`,
+        status: 'pass',
+        statusText: 'SET'
+    });
+
+    controls.push({
+        title: 'Rear Setback',
+        requirement: 'As per ADG requirements',
+        actual: `${rearSetback}m`,
+        status: 'pass',
+        statusText: 'SET'
+    });
+
+    controls.push({
+        title: 'Front Setback',
+        requirement: 'As per ADG requirements',
+        actual: `${frontSetback}m`,
+        status: 'pass',
+        statusText: 'SET'
+    });
+
+    // Site coverage
+    const siteCoverage = ((option.metrics.buildingFootprint / siteData.area) * 100).toFixed(1);
+    controls.push({
+        title: 'Site Coverage',
+        requirement: 'Minimize to maximize open space',
+        actual: `${siteCoverage}%`,
+        status: siteCoverage < 75 ? 'pass' : 'partial',
+        statusText: siteCoverage < 75 ? 'GOOD' : 'CHECK'
+    });
+
+    // Count summary
+    const summary = {
+        pass: controls.filter(c => c.status === 'pass').length,
+        partial: controls.filter(c => c.status === 'partial').length,
+        fail: controls.filter(c => c.status === 'fail').length
+    };
+
+    let html = `
+        <div class="compliance-summary-compact">
+            <div class="compliance-summary-item">
+                <div class="compliance-summary-value pass">${summary.pass}</div>
+                <div class="compliance-summary-label">Pass</div>
+            </div>
+            <div class="compliance-summary-item">
+                <div class="compliance-summary-value partial">${summary.partial}</div>
+                <div class="compliance-summary-label">Review</div>
+            </div>
+            <div class="compliance-summary-item">
+                <div class="compliance-summary-value fail">${summary.fail}</div>
+                <div class="compliance-summary-label">Fail</div>
+            </div>
+        </div>
+    `;
+
+    controls.forEach(control => {
+        html += `
+            <div class="compliance-item-compact ${control.status}">
+                <div class="compliance-item-header">
+                    <div class="compliance-item-title">${control.title}</div>
+                    <div class="compliance-item-status">${control.statusText}</div>
+                </div>
+                <div class="compliance-item-detail">Requirement: ${control.requirement}</div>
+                <div class="compliance-item-actual">Actual: ${control.actual}</div>
+            </div>
+        `;
+    });
+
+    tab.innerHTML = html;
+}
+
+/**
+ * Populate ADG Standards Popup
+ */
+function populateADGPopup(option) {
+    const container = document.getElementById('adgItemsContainer');
+    const compliance = calculateADGCompliance(option);
+
+    // Update summary counts
+    document.getElementById('adgPassCount').textContent = compliance.summary.pass;
+    document.getElementById('adgPartialCount').textContent = compliance.summary.partial;
+    document.getElementById('adgFailCount').textContent = compliance.summary.fail;
+
+    // Update status badge in header
+    const total = compliance.summary.pass + compliance.summary.partial + compliance.summary.fail;
+    const passRate = Math.round((compliance.summary.pass / total) * 100);
+    const badge = document.getElementById('adgStatusBadge');
+    badge.textContent = `${passRate}%`;
+
+    // Group items by category
+    const categories = {};
+    compliance.items.forEach(item => {
+        if (!categories[item.category]) {
+            categories[item.category] = [];
+        }
+        categories[item.category].push(item);
+    });
+
+    let html = '';
+
+    // Render each category
+    Object.keys(categories).forEach(category => {
+        html += `<div class="adg-section-title">${category}</div>`;
+
+        categories[category].forEach(item => {
+            const statusText = item.status === 'pass' ? 'PASS' : item.status === 'partial' ? 'PARTIAL' : 'FAIL';
+            html += `
+                <div class="adg-item ${item.status}">
+                    <div class="adg-item-header">
+                        <div class="adg-item-title">${item.requirement}</div>
+                        <div class="adg-item-badge">${statusText}</div>
+                    </div>
+                    <div class="adg-item-detail">${item.criteria} → ${item.actual}</div>
+                </div>
+            `;
+        });
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * Show ADG popup
+ */
+function showAdgPopup() {
+    const popup = document.getElementById('adgPopup');
+    popup.classList.add('active');
+    popup.classList.remove('collapsed');
+    document.getElementById('adgCollapseIcon').textContent = '▼';
+}
+
+/**
+ * Close ADG popup
+ */
+function closeAdgPopup() {
+    const popup = document.getElementById('adgPopup');
+    popup.classList.remove('active');
+}
+
+/**
+ * Toggle ADG popup collapse/expand
+ */
+function toggleAdgPopup() {
+    const popup = document.getElementById('adgPopup');
+    const icon = document.getElementById('adgCollapseIcon');
+
+    if (popup.classList.contains('collapsed')) {
+        popup.classList.remove('collapsed');
+        icon.textContent = '▼';
+    } else {
+        popup.classList.add('collapsed');
+        icon.textContent = '▲';
+    }
+}
+
+/**
+ * Switch between compliance tabs
+ */
+function switchComplianceTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.compliance-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    event?.target?.classList?.add('active') ||
+        document.querySelector(`.compliance-tab[onclick*="${tabName}"]`)?.classList.add('active');
+
+    // Update tab content
+    document.querySelectorAll('.compliance-tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+}
+
+/**
+ * Close compliance window
+ */
+function closeComplianceWindow() {
+    const window = document.getElementById('complianceWindow');
+    window.classList.remove('active');
+}
+
+/**
+ * Toggle minimize compliance window
+ */
+function toggleMinimizeCompliance() {
+    const window = document.getElementById('complianceWindow');
+    window.classList.toggle('minimized');
+}
+
+// Make window draggable
+let isDragging = false;
+let currentX;
+let currentY;
+let initialX;
+let initialY;
+let xOffset = 0;
+let yOffset = 0;
+
+const complianceHeader = document.getElementById('complianceHeader');
+const complianceWindow = document.getElementById('complianceWindow');
+
+if (complianceHeader && complianceWindow) {
+    complianceHeader.addEventListener('mousedown', dragStart);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', dragEnd);
+}
+
+function dragStart(e) {
+    if (e.target.tagName === 'BUTTON') return;
+
+    initialX = e.clientX - xOffset;
+    initialY = e.clientY - yOffset;
+    isDragging = true;
+}
+
+function drag(e) {
+    if (isDragging) {
+        e.preventDefault();
+        currentX = e.clientX - initialX;
+        currentY = e.clientY - initialY;
+        xOffset = currentX;
+        yOffset = currentY;
+
+        setTranslate(currentX, currentY, complianceWindow);
+    }
+}
+
+function dragEnd(e) {
+    initialX = currentX;
+    initialY = currentY;
+    isDragging = false;
+}
+
+function setTranslate(xPos, yPos, el) {
+    el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+}
+
+// ===== LOAD TO CASHFLOW FUNCTION =====
+/**
+ * Load the selected building option to the Cashflow model
+ * Stores data in sessionStorage and navigates to cashflow page
+ */
+function loadToCashflow() {
+    // Check if an option is selected
+    if (selectedOption === null || generatedOptions.length === 0) {
+        alert('Please generate and select a building option first.');
+        return;
+    }
+
+    const option = generatedOptions[selectedOption];
+
+    // Prepare cashflow data from building option
+    const cashflowData = {
+        // Project identifiers
+        source: 'generator',
+        timestamp: new Date().toISOString(),
+
+        // Site metrics
+        site_area: Math.round(siteData.area),
+        address: siteData.address || 'Generated Project',
+
+        // Building metrics
+        gfa: Math.round(option.metrics.GFA),
+        gba: Math.round(option.metrics.GBA),
+        nsa: Math.round(option.metrics.NSA),
+        efficiency_nsa_gfa: Math.round((option.metrics.NSA / option.metrics.GFA) * 100 * 10) / 10,
+        efficiency_nsa_gba: Math.round(option.metrics.efficiency * 10) / 10,
+
+        // Unit count
+        num_units: option.unitCounts ? Object.values(option.unitCounts).reduce((a, b) => a + b, 0) : 0,
+
+        // Unit breakdown (for reference)
+        unit_mix: option.unitCounts || {},
+
+        // Building form details
+        building_type: option.name,
+        floors: option.floors,
+        height: option.height,
+        fsr: option.achievedFSR,
+
+        // Land uses
+        land_uses: option.landUses || {
+            residential: buildingParams.residential,
+            commercial: buildingParams.commercial,
+            retail: buildingParams.retail
+        },
+
+        // Parameters snapshot
+        params: {
+            circulation: buildingParams.circulation,
+            wallThickness: buildingParams.wallThickness,
+            floorHeight: buildingParams.floorHeight
+        }
+    };
+
+    // Store in sessionStorage for cashflow to pick up
+    sessionStorage.setItem('generatorToCashflow', JSON.stringify(cashflowData));
+
+    // Show confirmation
+    const confirmLoad = confirm(
+        `Load to Cashflow?\n\n` +
+        `Building: ${option.name}\n` +
+        `GFA: ${cashflowData.gfa.toLocaleString()} m²\n` +
+        `NSA: ${cashflowData.nsa.toLocaleString()} m²\n` +
+        `Units: ${cashflowData.num_units}\n` +
+        `Site Area: ${cashflowData.site_area.toLocaleString()} m²\n\n` +
+        `Click OK to open Cashflow with these parameters.`
+    );
+
+    if (confirmLoad) {
+        // Navigate to cashflow page
+        window.location.href = '/cashflow/?from=generator';
+    }
+}
+
+// Expose functions to global scope for onclick handlers
+window.toggleMinimizeCompliance = toggleMinimizeCompliance;
+window.closeComplianceWindow = closeComplianceWindow;
+window.switchComplianceTab = switchComplianceTab;
+window.showAdgPopup = showAdgPopup;
+window.closeAdgPopup = closeAdgPopup;
+window.toggleAdgPopup = toggleAdgPopup;
+window.generateOptions = generateOptions;
+window.selectOption = selectOption;
+window.loadToCashflow = loadToCashflow;
+
+</script>
+{% endblock %}
