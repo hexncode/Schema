@@ -14,6 +14,13 @@ try:
 except ImportError:
     pass  # dotenv not installed, use system env vars
 
+# Heroku DATABASE_URL parsing
+try:
+    import dj_database_url
+    HAS_DJ_DATABASE_URL = True
+except ImportError:
+    HAS_DJ_DATABASE_URL = False
+
 # GDAL/GEOS configuration for Windows (PostGIS bundle includes these)
 GDAL_LIBRARY_PATH = None
 GEOS_LIBRARY_PATH = None
@@ -80,6 +87,7 @@ INSTALLED_APPS += [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -111,16 +119,30 @@ TEMPLATES = [
 WSGI_APPLICATION = 'schema_project.wsgi.application'
 
 # Database Configuration
-# Use PostGIS for GIS data storage (recommended)
-# Set USE_POSTGIS=True environment variable to enable
+# Priority: DATABASE_URL (Heroku) > USE_POSTGIS env vars > SQLite
 
-if USE_POSTGIS:
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if DATABASE_URL and HAS_DJ_DATABASE_URL:
+    # Heroku Postgres - parse DATABASE_URL
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+    # Override engine for PostGIS if USE_POSTGIS is set
+    if USE_POSTGIS:
+        DATABASES['default']['ENGINE'] = 'django.contrib.gis.db.backends.postgis'
+elif USE_POSTGIS:
+    # Local PostGIS configuration
     DATABASES = {
         'default': {
             'ENGINE': 'django.contrib.gis.db.backends.postgis',
             'NAME': os.environ.get('DB_NAME', 'schema_gis'),
             'USER': os.environ.get('DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', ''),  # Set your postgres password
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
             'HOST': os.environ.get('DB_HOST', 'localhost'),
             'PORT': os.environ.get('DB_PORT', '5432'),
         }
@@ -171,6 +193,16 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
+
+# WhiteNoise for static files on Heroku
+STORAGES = {
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+}
 
 # Media files (user-uploaded content)
 MEDIA_URL = 'media/'

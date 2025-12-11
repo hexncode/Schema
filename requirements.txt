@@ -24,6 +24,8 @@ requests>=2.31.0
 
 # Production server
 gunicorn>=21.2.0
+whitenoise>=6.6.0  # Serve static files on Heroku
+dj-database-url>=2.1.0  # Parse Heroku DATABASE_URL
 
 # Note: GDAL is required by geopandas and GeoDjango
 # Installation on Windows:
